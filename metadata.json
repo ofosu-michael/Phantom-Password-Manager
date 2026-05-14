@@ -1,0 +1,6 @@
+{
+  "name": "Phantom Vault",
+  "description": "A secure, open-source password manager with a modern Phantom-inspired design. Client-side encryption for total privacy.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

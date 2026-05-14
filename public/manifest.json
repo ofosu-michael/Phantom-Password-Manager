@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Phantom Vault",
+  "version": "1.0",
+  "description": "Locally encrypted and secure password manager. Client-side encryption for total privacy.",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Open Vault"
+  },
+  "permissions": [
+    "activeTab",
+    "storage"
+  ]
+}
