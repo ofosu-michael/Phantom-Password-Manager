@@ -7,7 +7,6 @@ import {
   Upload,
   Trash2,
   FileText,
-  Shield,
   AlertTriangle,
 } from "lucide-react";
 import Papa from "papaparse";
@@ -42,23 +41,29 @@ export default function Settings({
   onShowToast,
 }: SettingsProps) {
   const [showConfirmWipe, setShowConfirmWipe] = useState(false);
+  const [showExportWarning, setShowExportWarning] = useState(false);
+  const [exportConfirmText, setExportConfirmText] = useState("");
 
-  const handleExport = () => {
-    const data = items.map((item) => ({
-      title: item.title,
-      website: item.website,
-      username: item.username,
-      password: decrypt(item.encryptedPassword, masterPassword) || "",
-      category: item.category,
-      content: item.content || "",
-    }));
+  const handleExport = async () => {
+    const decryptedItems = await Promise.all(
+      items.map(async (item) => ({
+        title: item.title,
+        website: item.website,
+        username: item.username,
+        password: (await decrypt(item.encryptedPassword, masterPassword)) || "",
+        category: item.category,
+        content: item.content || "",
+      }))
+    );
 
-    const csv = Papa.unparse(data);
+    const csv = Papa.unparse(decryptedItems);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `vault_export_${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
+    setShowExportWarning(false);
+    setExportConfirmText("");
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,7 +73,7 @@ export default function Settings({
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
+      complete: async (results) => {
         const importedData = results.data as any[];
 
         const getValue = (row: any, keys: string[]) => {
@@ -82,20 +87,18 @@ export default function Settings({
           return "";
         };
 
-        const newItems: VaultItem[] = importedData
-          .filter((row) => {
-            const title = getValue(row, ["title", "name"]);
-            const url = getValue(row, ["url", "website", "login_uri"]);
-            const pwd = getValue(row, ["password", "login_password"]);
-            return (title || url) && pwd;
-          })
-          .map((row) => {
+        const newItems: VaultItem[] = [];
+        for (const row of importedData) {
+          const title = getValue(row, ["title", "name"]);
+          const url = getValue(row, ["url", "website", "login_uri"]);
+          const pwd = getValue(row, ["password", "login_password"]);
+          if ((title || url) && pwd) {
             const rawPassword = getValue(row, ["password", "login_password"]);
-            const encryptedPass = encrypt(rawPassword, masterPassword);
+            const encryptedPass = await encrypt(rawPassword, masterPassword);
 
             const rawTotp = getValue(row, ["totp", "login_totp", "otpauth"]);
             const encryptedTotp = rawTotp
-              ? encrypt(rawTotp, masterPassword)
+              ? await encrypt(rawTotp, masterPassword)
               : undefined;
 
             let cat = "Login";
@@ -116,8 +119,8 @@ export default function Settings({
                   .filter(Boolean)
               : [];
 
-            return {
-              id: Math.random().toString(36).substring(2, 9),
+            newItems.push({
+              id: crypto.randomUUID(),
               title: getValue(row, ["title", "name"]) || "Imported Item",
               website: getValue(row, ["website", "url", "login_uri"]),
               username: getValue(row, ["username", "login_username"]),
@@ -130,8 +133,9 @@ export default function Settings({
               passwordHistory: [
                 { password: encryptedPass, timestamp: Date.now() },
               ],
-            };
-          });
+            });
+          }
+        }
 
         if (newItems.length > 0) {
           onImport(newItems);
@@ -151,8 +155,8 @@ export default function Settings({
     });
   };
 
-  const handleBackup = () => {
-    const encryptedVault = encrypt(JSON.stringify(items), masterPassword);
+  const handleBackup = async () => {
+    const encryptedVault = await encrypt(JSON.stringify(items), masterPassword);
     const blob = new Blob([encryptedVault], { type: "text/plain" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -165,10 +169,10 @@ export default function Settings({
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
       try {
-        const decrypted = decrypt(content, masterPassword);
+        const decrypted = await decrypt(content, masterPassword);
         if (decrypted) {
           const parsed = JSON.parse(decrypted);
           onImport(parsed);
@@ -203,7 +207,7 @@ export default function Settings({
           <p className="text-xs font-semibold text-zinc-400 px-1">Security</p>
           <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-3">
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Your vault is protected with AES-256 encryption. All data is stored locally.
+              Your vault is protected with AES-256-GCM encryption with PBKDF2 key derivation (100,000 iterations). All data is stored locally.
             </p>
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
@@ -256,7 +260,7 @@ export default function Settings({
                   </div>
                 </label>
                 <button
-                  onClick={handleExport}
+                  onClick={() => setShowExportWarning(true)}
                   className="flex-1 py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-1.5 border border-zinc-700 hover:border-zinc-600"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -272,7 +276,7 @@ export default function Settings({
                   <h4 className="text-xs font-semibold text-white">Encrypted Backup</h4>
                   <p className="text-[10px] text-zinc-500 mt-0.5">Safe vault backup</p>
                 </div>
-                <Shield className="w-5 h-5 text-zinc-600" />
+                <img src="/logo.svg" alt="Phantom" className="w-5 h-5" />
               </div>
               <div className="flex gap-2">
                 <label className="flex-1">
@@ -306,6 +310,64 @@ export default function Settings({
         </div>
       </div>
 
+      {/* Export Warning Modal */}
+      <AnimatePresence>
+        {showExportWarning && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setShowExportWarning(false); setExportConfirmText(""); }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-xs bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4 shadow-2xl"
+            >
+              <div className="flex flex-col items-center text-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-yellow-500" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-base font-semibold text-white">Export Warning</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    This will export all passwords in <span className="text-yellow-400 font-semibold">plaintext</span>. Store the file securely and delete it after use.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={exportConfirmText}
+                  onChange={(e) => setExportConfirmText(e.target.value)}
+                  placeholder='Type "EXPORT" to confirm'
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white text-xs rounded-xl px-3 py-2.5 outline-none focus:border-zinc-500 placeholder:text-zinc-500"
+                />
+              </div>
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  onClick={handleExport}
+                  disabled={exportConfirmText !== "EXPORT"}
+                  className="w-full py-3 bg-yellow-500 text-black text-xs font-semibold rounded-xl hover:bg-yellow-400 disabled:opacity-50 disabled:bg-zinc-800 disabled:text-zinc-500 transition-colors"
+                >
+                  Export Plaintext CSV
+                </button>
+                <button
+                  onClick={() => { setShowExportWarning(false); setExportConfirmText(""); }}
+                  className="w-full py-3 bg-zinc-800 text-white text-xs font-semibold rounded-xl hover:bg-zinc-700 transition-colors border border-zinc-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Wipe Confirmation Modal */}
       <AnimatePresence>
         {showConfirmWipe && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">

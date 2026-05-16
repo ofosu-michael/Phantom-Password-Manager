@@ -66,13 +66,7 @@ export default function AddVaultItem({
   const [username, setUsername] = useState(item?.username || "");
   const [password, setPassword] = useState(decryptedPassword);
 
-  // Decrypt TOTP back to raw for editing
-  const initialTotp =
-    item?.encryptedTotpSecret && masterPassword
-      ? decrypt(item.encryptedTotpSecret, masterPassword) || ""
-      : "";
-  const [totpSecret, setTotpSecret] = useState(initialTotp);
-
+  const [totpSecret, setTotpSecret] = useState("");
   const [content, setContent] = useState(item?.content || "");
   const [cardDetails, setCardDetails] = useState(
     item?.cardDetails || { number: "", expiry: "", cvv: "" },
@@ -93,10 +87,7 @@ export default function AddVaultItem({
   >(() => {
     return (item?.customFields || []).map((cf) => ({
       ...cf,
-      value:
-        cf.isSecret && masterPassword && cf.value
-          ? decrypt(cf.value, masterPassword) || ""
-          : cf.value,
+      value: cf.value,
     }));
   });
 
@@ -107,12 +98,47 @@ export default function AddVaultItem({
   const [showGenSettings, setShowGenSettings] = useState(false);
   const [genOptions, setGenOptions] = useState({ length: 16, numbers: true, symbols: true, uppercase: true });
   const [isPreview, setIsPreview] = useState(false);
+  const [decryptedHistory, setDecryptedHistory] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (decryptedPassword) {
       setPassword(decryptedPassword);
     }
   }, [decryptedPassword]);
+
+  useEffect(() => {
+    if (item?.encryptedTotpSecret && masterPassword) {
+      decrypt(item.encryptedTotpSecret, masterPassword).then((val) => {
+        if (val) setTotpSecret(val);
+      });
+    }
+  }, [item?.encryptedTotpSecret, masterPassword]);
+
+  useEffect(() => {
+    if (item?.customFields && masterPassword) {
+      item.customFields.forEach(async (cf) => {
+        if (cf.isSecret && cf.value) {
+          const val = await decrypt(cf.value, masterPassword);
+          if (val) {
+            setCustomFields((prev) =>
+              prev.map((f) => (f.id === cf.id ? { ...f, value: val } : f))
+            );
+          }
+        }
+      });
+    }
+  }, [item?.customFields, masterPassword]);
+
+  useEffect(() => {
+    if (item?.passwordHistory && masterPassword) {
+      item.passwordHistory.forEach(async (h, i) => {
+        const val = await decrypt(h.password, masterPassword);
+        if (val) {
+          setDecryptedHistory((prev) => ({ ...prev, [i]: val }));
+        }
+      });
+    }
+  }, [item?.passwordHistory, masterPassword]);
 
   const getPasswordStrength = (pass: string) => {
     if (!pass) return { score: 0, label: "None", color: "bg-zinc-800" };
@@ -136,7 +162,7 @@ export default function AddVaultItem({
 
     let encryptedTotpSecret = undefined;
     if (category === "Login" && totpSecret.trim() && masterPassword) {
-      encryptedTotpSecret = encrypt(totpSecret.trim(), masterPassword);
+      encryptedTotpSecret = await encrypt(totpSecret.trim(), masterPassword);
     }
 
     if (category === "Login" && (window as any).PasswordCredential && !item) {
@@ -152,15 +178,17 @@ export default function AddVaultItem({
       }
     }
 
-    const finalCustomFields = customFields.map((cf) => ({
-      id: cf.id,
-      name: cf.name,
-      value:
-        cf.isSecret && masterPassword && cf.value
-          ? encrypt(cf.value, masterPassword)
-          : cf.value,
-      isSecret: cf.isSecret,
-    }));
+    const finalCustomFields = await Promise.all(
+      customFields.map(async (cf) => ({
+        id: cf.id,
+        name: cf.name,
+        value:
+          cf.isSecret && masterPassword && cf.value
+            ? await encrypt(cf.value, masterPassword)
+            : cf.value,
+        isSecret: cf.isSecret,
+      }))
+    );
 
     onSave({
       id: item?.id,
@@ -708,7 +736,7 @@ export default function AddVaultItem({
                   setCustomFields([
                     ...customFields,
                     {
-                      id: Date.now().toString(),
+                      id: crypto.randomUUID(),
                       name: "",
                       value: "",
                       isSecret: false,
@@ -990,10 +1018,8 @@ export default function AddVaultItem({
                       <button
                         type="button"
                         onClick={() => {
-                          if (masterPassword) {
-                            const dec = decrypt(h.password, masterPassword);
-                            if (dec) setPassword(dec);
-                          }
+                          const dec = decryptedHistory[i];
+                          if (dec) setPassword(dec);
                         }}
                         className="text-xs font-semibold text-accent hover:text-accent-hover transition-colors"
                       >
@@ -1001,9 +1027,7 @@ export default function AddVaultItem({
                       </button>
                     </div>
                     <div className="text-sm font-mono text-zinc-300 break-all select-all">
-                      {masterPassword
-                        ? decrypt(h.password, masterPassword)
-                        : "••••••••"}
+                      {decryptedHistory[i] || "••••••••"}
                     </div>
                   </div>
                 </div>

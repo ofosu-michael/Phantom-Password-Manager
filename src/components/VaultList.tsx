@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
   Plus,
-  Shield,
   Copy,
   Key,
   ChevronRight,
@@ -75,28 +74,6 @@ export default function VaultList({
     );
   });
 
-  useEffect(() => {
-    // If running as a Chrome extension, automatically search for the current active tab's domain
-    if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.query) {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0] && tabs[0].url) {
-          try {
-            const url = new URL(tabs[0].url);
-            let hostname = url.hostname;
-            if (hostname.startsWith("www.")) {
-              hostname = hostname.slice(4);
-            }
-            if (hostname) {
-              setSearch(hostname);
-            }
-          } catch (e) {
-            // Ignore invalid URLs
-          }
-        }
-      });
-    }
-  }, []);
-
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
@@ -147,7 +124,8 @@ export default function VaultList({
     }
   };
 
-  // Timer for TOTP
+  const [totpCodes, setTotpCodes] = useState<Record<string, string>>({});
+  const [totpSecrets, setTotpSecrets] = useState<Record<string, string>>({});
   const [timeRemaining, setTimeRemaining] = useState(
     30 - (Math.floor(Date.now() / 1000) % 30),
   );
@@ -159,11 +137,54 @@ export default function VaultList({
   }, []);
 
   useEffect(() => {
+    if (!masterPassword) return;
+    const loadTotp = async () => {
+      const codes: Record<string, string> = {};
+      const secrets: Record<string, string> = {};
+      for (const item of items) {
+        if (item.encryptedTotpSecret && item.category === "Login") {
+          try {
+            const secret = await decrypt(item.encryptedTotpSecret, masterPassword);
+            if (secret) {
+              secrets[item.id] = secret;
+              const totp = new OTPAuth.TOTP({
+                algorithm: "SHA1",
+                digits: 6,
+                period: 30,
+                secret: OTPAuth.Secret.fromBase32(secret.replace(/\s+/g, "")),
+              });
+              codes[item.id] = totp.generate();
+            }
+          } catch {}
+        }
+      }
+      setTotpCodes(codes);
+      setTotpSecrets(secrets);
+    };
+    loadTotp();
+  }, [items, masterPassword]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       setTimeRemaining(30 - (Math.floor(Date.now() / 1000) % 30));
+      if (Object.keys(totpSecrets).length > 0) {
+        const codes: Record<string, string> = {};
+        Object.entries(totpSecrets).forEach(([id, secret]) => {
+          try {
+            const totp = new OTPAuth.TOTP({
+              algorithm: "SHA1",
+              digits: 6,
+              period: 30,
+              secret: OTPAuth.Secret.fromBase32(secret.replace(/\s+/g, "")),
+            });
+            codes[id] = totp.generate();
+          } catch {}
+        });
+        setTotpCodes(codes);
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [totpSecrets]);
 
   const tags = useMemo(() => {
     const allTags = new Set<string>();
@@ -242,23 +263,6 @@ export default function VaultList({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const generateTotp = (encryptedSecret?: string) => {
-    if (!encryptedSecret || !masterPassword) return null;
-    try {
-      const secret = decrypt(encryptedSecret, masterPassword);
-      if (!secret) return null;
-      let totp = new OTPAuth.TOTP({
-        algorithm: "SHA1",
-        digits: 6,
-        period: 30,
-        secret: OTPAuth.Secret.fromBase32(secret.replace(/\s+/g, "")),
-      });
-      return totp.generate();
-    } catch (e) {
-      return null;
-    }
-  };
-
   const getIcon = (category: string) => {
     switch (category) {
       case "Card":
@@ -279,9 +283,7 @@ export default function VaultList({
         {/* Top row: Logo + Actions */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center bg-white">
-              <Shield className="w-3.5 h-3.5 text-black" />
-            </div>
+            <img src="/logo.svg" alt="Phantom" className="w-7 h-7" />
             <span className="font-semibold text-lg tracking-tight text-white">
               Vault
             </span>
@@ -760,7 +762,7 @@ export default function VaultList({
             </motion.div>
           ) : (
             filteredItems.flatMap((item, index) => {
-              const totpCode = generateTotp(item.encryptedTotpSecret);
+              const totpCode = totpCodes[item.id];
 
               const isFirstFavorite =
                 item.isFavorite &&
@@ -1128,8 +1130,8 @@ export default function VaultList({
                   }}
                   className="w-full text-left px-4 py-3 hover:bg-zinc-800 rounded-xl transition-colors text-white text-sm font-medium flex items-center gap-3"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                    <Shield className="w-4 h-4 text-zinc-400" />
+                   <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <img src="/logo.svg" alt="Phantom" className="w-6 h-6" />
                   </div>
                   No Folder (Root)
                 </button>
