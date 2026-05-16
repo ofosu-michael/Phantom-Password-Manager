@@ -49,6 +49,7 @@ export default function App() {
   const [editingItem, setEditingItem] = useState<VaultItem | undefined>(
     undefined,
   );
+  const [pendingPassword, setPendingPassword] = useState("");
   const [isInitialized, setIsInitialized] = useState(false);
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [autoLockTimeout, setAutoLockTimeout] = useState<number>(() => {
@@ -66,6 +67,158 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Check for pending credentials
+  useEffect(() => {
+    const handlePendingCredential = (cred: any) => {
+      if (Date.now() - cred.timestamp < 5 * 60 * 1000) {
+        setPendingPassword(cred.password);
+        setEditingItem({
+          id: "",
+          category: "Login",
+          title: cred.url,
+          website: cred.url,
+          username: cred.username,
+          encryptedPassword: "",
+          updatedAt: Date.now(),
+        });
+        setView("add");
+      }
+    };
+
+    const handlePendingNote = (note: any) => {
+      if (Date.now() - note.timestamp < 5 * 60 * 1000) {
+        setPendingPassword(""); // Ensure no pending password logic is active
+        setEditingItem({
+          id: "",
+          category: "Note",
+          title: "Highlighted Note",
+          website: note.url,
+          username: "",
+          encryptedPassword: "",
+          content: note.text,
+          updatedAt: Date.now(),
+        });
+        setView("add");
+      }
+    };
+
+    const checkStorage = () => {
+      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(["phantom_pending_credential", "phantom_pending_note"], (result) => {
+          if (result.phantom_pending_credential) {
+            handlePendingCredential(result.phantom_pending_credential);
+            chrome.storage.local.remove("phantom_pending_credential");
+          }
+          if (result.phantom_pending_note) {
+            handlePendingNote(result.phantom_pending_note);
+            chrome.storage.local.remove("phantom_pending_note");
+          }
+        });
+      }
+    };
+
+    checkStorage();
+
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+      const messageListener = (msg: any) => {
+        if (msg.type === "PROMPT_SAVE_PASSWORD" || msg.type === "PROMPT_SAVE_NOTE") {
+          checkStorage();
+        }
+      };
+      chrome.runtime.onMessage.addListener(messageListener);
+      return () => chrome.runtime.onMessage.removeListener(messageListener);
+    }
+  }, []);
+
+  // Handle requests for credentials from content script
+  useEffect(() => {
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+      const credentialListener = (msg: any, sender: any, sendResponse: any) => {
+        if (msg.type === "REQUEST_CREDENTIALS") {
+          if (!masterPassword) {
+            sendResponse({ success: false, locked: true });
+            return true;
+          }
+
+          const domain = msg.domain || "";
+          const matchedCredentials = items
+            .filter((item) => {
+              if (item.category !== "Login" || !item.website) return false;
+              const w = item.website.toLowerCase();
+              const d = domain.toLowerCase();
+              if (w.includes(d) || d.includes(w)) return true;
+              try {
+                const host = new URL(w.startsWith('http') ? w : `https://${w}`).hostname;
+                return host.includes(d) || d.includes(host);
+              } catch (e) {
+                return false;
+              }
+            })
+            .map((item) => {
+              try {
+                return {
+                  id: item.id,
+                  title: item.title,
+                  username: item.username,
+                  password: decrypt(item.encryptedPassword, masterPassword),
+                };
+              } catch (e) {
+                return null;
+              }
+            })
+            .filter(Boolean);
+
+          sendResponse({ success: true, credentials: matchedCredentials });
+          return true;
+        }
+
+        if (msg.type === "CHECK_CREDENTIAL_EXISTS") {
+          if (!masterPassword) {
+            sendResponse({ exists: false, locked: true });
+            return true;
+          }
+
+          const domain = msg.domain || "";
+          const username = msg.username || "";
+          const password = msg.password || "";
+
+          const exists = items.some((item) => {
+            if (item.category !== "Login" || !item.website) return false;
+            
+            const w = item.website.toLowerCase();
+            const d = domain.toLowerCase();
+            let domainMatch = false;
+            
+            if (w.includes(d) || d.includes(w)) domainMatch = true;
+            else {
+              try {
+                const host = new URL(w.startsWith('http') ? w : `https://${w}`).hostname;
+                if (host.includes(d) || d.includes(host)) domainMatch = true;
+              } catch (e) {
+                // Ignore parse errors
+              }
+            }
+            
+            if (!domainMatch) return false;
+            if (item.username !== username) return false;
+            
+            try {
+              return decrypt(item.encryptedPassword, masterPassword) === password;
+            } catch (e) {
+              return false;
+            }
+          });
+
+          sendResponse({ exists, locked: false });
+          return true;
+        }
+      };
+      
+      chrome.runtime.onMessage.addListener(credentialListener);
+      return () => chrome.runtime.onMessage.removeListener(credentialListener);
+    }
+  }, [items, masterPassword]);
 
   const [toast, setToast] = useState<{
     text: string;
@@ -85,26 +238,15 @@ export default function App() {
     if (!masterPassword || items.length === 0)
       return {
         score: 100,
-        weak: 0,
         reused: 0,
-        old: 0,
         breached: 0,
         breachedIds: [],
       };
 
     const decryptedPasswords: Record<string, string[]> = {};
-    let weakCount = 0;
-    let oldCount = 0;
-    const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
 
     items.forEach((item) => {
       if (item.category !== "Login") return;
-
-      // Weak check
-      if ((item.strength || 0) < 3) weakCount++;
-
-      // Age check
-      if (Date.now() - item.updatedAt > NINETY_DAYS) oldCount++;
 
       // Reuse check
       try {
@@ -133,16 +275,13 @@ export default function App() {
     if (totalLogins === 0)
       return {
         score: 100,
-        weak: 0,
         reused: 0,
-        old: 0,
         breached: 0,
         breachedIds: [],
       };
 
     // Calculate score: Deduct for each issue
-    const deductions =
-      weakCount * 15 + reusedCount * 20 + oldCount * 5 + breachedCount * 40;
+    const deductions = reusedCount * 20 + breachedCount * 40;
     const score = Math.max(
       0,
       100 - Math.round((deductions / (totalLogins * 40)) * 100),
@@ -150,9 +289,7 @@ export default function App() {
 
     return {
       score,
-      weak: weakCount,
       reused: reusedCount,
-      old: oldCount,
       breached: breachedCount,
       breachedIds: currentBreachedIds,
     };
@@ -201,26 +338,41 @@ export default function App() {
     };
   }, [items, masterPassword]);
 
-  // Generator State
-  const [genLength, setGenLength] = useState(16);
-  const [genOptions, setGenOptions] = useState({
-    numbers: true,
-    symbols: true,
-    uppercase: true,
-  });
-  const [generatedPass, setGeneratedPass] = useState("");
+  
 
+  // Check if vault is already setup & handle session restore
   useEffect(() => {
-    setGeneratedPass(generateRandomPassword(genLength, genOptions));
-  }, [genLength, genOptions]);
+    const init = () => {
+      const masterHash = localStorage.getItem(MASTER_HASH_KEY);
+      if (!masterHash) {
+        setView("setup");
+        setIsInitialized(true);
+        return;
+      }
 
-  // Check if vault is already setup
-  useEffect(() => {
-    const masterHash = localStorage.getItem(MASTER_HASH_KEY);
-    if (!masterHash) {
-      setView("setup");
-    }
-    setIsInitialized(true);
+      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+        chrome.storage.session.get(["masterPassword", "lastActivity"], (result) => {
+          if (result.masterPassword) {
+            const now = Date.now();
+            const savedLastActivity = result.lastActivity || now;
+            const savedAutoLock = localStorage.getItem("phantom_vault_autolock");
+            const timeout = savedAutoLock ? parseInt(savedAutoLock, 10) : 5 * 60 * 1000;
+
+            if (timeout !== 0 && now - savedLastActivity > timeout) {
+              chrome.storage.session.remove(["masterPassword", "lastActivity"]);
+            } else {
+              setMasterPassword(result.masterPassword);
+              setLastActivity(now);
+              setView("home");
+            }
+          }
+          setIsInitialized(true);
+        });
+      } else {
+        setIsInitialized(true);
+      }
+    };
+    init();
   }, []);
 
   // Session Timeout logic
@@ -230,17 +382,21 @@ export default function App() {
     const interval = setInterval(() => {
       if (Date.now() - lastActivity > autoLockTimeout) {
         setMasterPassword("");
+        if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+          chrome.storage.session.remove(["masterPassword", "lastActivity"]);
+        }
         setView("unlock");
       }
     }, 10000); // Check every 10 seconds
 
     const updateActivity = () => setLastActivity(Date.now());
 
-    // Panic tab switch lock
+    // Update session on visibility hidden instead of locking
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        setMasterPassword("");
-        setView("unlock");
+        if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+          chrome.storage.session.set({ lastActivity: Date.now() });
+        }
       }
     };
 
@@ -256,7 +412,7 @@ export default function App() {
       window.removeEventListener("click", updateActivity);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [masterPassword, lastActivity]);
+  }, [masterPassword, lastActivity, autoLockTimeout]);
 
   // Load and decrypt items when master password is set
   useEffect(() => {
@@ -334,12 +490,18 @@ export default function App() {
       // First time setup
       localStorage.setItem(MASTER_HASH_KEY, hashed);
       setMasterPassword(password);
+      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+        chrome.storage.session.set({ masterPassword: password, lastActivity: Date.now() });
+      }
       setView("home");
       return true;
     }
 
     if (hashed === storedHash) {
       setMasterPassword(password);
+      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+        chrome.storage.session.set({ masterPassword: password, lastActivity: Date.now() });
+      }
       setFailedAttempts(0);
       setLockoutUntil(null);
       setView("home");
@@ -415,6 +577,7 @@ export default function App() {
 
     saveItems(newItems);
     setView("home");
+    setPendingPassword("");
   };
 
   const handleDelete = (id: string, permanent: boolean = false) => {
@@ -502,16 +665,15 @@ export default function App() {
   };
 
   const decryptedEditingPassword = useMemo(() => {
+    if (pendingPassword) return pendingPassword;
     if (!editingItem || !masterPassword) return "";
     return decrypt(editingItem.encryptedPassword, masterPassword) || "";
-  }, [editingItem, masterPassword]);
+  }, [editingItem, masterPassword, pendingPassword]);
 
   if (!isInitialized) return null;
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center md:p-4">
-      {/* Simulation of a chrome extension container */}
-      <div className="w-full md:w-[360px] h-full md:h-[600px] max-h-[600px] mx-auto bg-black md:rounded-[32px] overflow-hidden md:border border-white/10 md:shadow-2xl relative">
+    <div className="sidebar-container bg-black">
         <AnimatePresence mode="wait">
           {(view === "unlock" || view === "setup") && (
             <motion.div
@@ -519,7 +681,7 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="h-full"
+              className="h-full flex-1 w-full flex flex-col"
             >
               <UnlockScreen
                 onUnlock={handleUnlock}
@@ -535,7 +697,7 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="h-full relative"
+              className="h-full flex-1 w-full flex flex-col relative"
             >
               <VaultList
                 items={items}
@@ -545,6 +707,7 @@ export default function App() {
                 onShowToast={showToast}
                 onAdd={() => {
                   setEditingItem(undefined);
+                  setPendingPassword("");
                   setView("add");
                 }}
                 onAddFolder={(name, color) => {
@@ -571,32 +734,25 @@ export default function App() {
                 onDashboard={() => setView("dashboard")}
                 onSettings={() => setView("settings")}
               />
-              {/* Overriding Footer interaction to support Generator view toggle */}
-              <div className="absolute bottom-0 left-0 w-full h-[68px] bg-black border-t border-zinc-900/80 flex justify-center gap-12 text-zinc-500 text-[10px] uppercase font-semibold">
+              {/* Overriding Footer interaction to support view toggles */}
+              <div className="absolute bottom-0 left-0 w-full h-[68px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[10px] uppercase font-semibold">
                 <button
                   onClick={() => setView("home")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "home" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "home" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Shield className="w-5 h-5" />
                   <span>Vault</span>
                 </button>
                 <button
                   onClick={() => setView("dashboard")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <LayoutDashboard className="w-5 h-5" />
                   <span>Audit</span>
                 </button>
                 <button
-                  onClick={() => setView("generator")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "generator" ? "text-white" : "hover:text-zinc-300"}`}
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span>Gen</span>
-                </button>
-                <button
                   onClick={() => setView("settings")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "settings" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "settings" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Settings className="w-5 h-5" />
                   <span>Sync</span>
@@ -611,7 +767,7 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="h-full"
+              className="h-full flex-1 w-full flex flex-col"
             >
               <AddVaultItem
                 item={editingItem}
@@ -621,7 +777,11 @@ export default function App() {
                 onSave={handleAdd}
                 onDelete={handleDelete}
                 onRestore={handleRestore}
-                onCancel={() => setView("home")}
+                onCancel={() => {
+                  setView("home");
+                  setPendingPassword("");
+                }}
+                onShowToast={showToast}
               />
             </motion.div>
           )}
@@ -632,7 +792,7 @@ export default function App() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="h-full relative"
+              className="h-full flex-1 w-full flex flex-col relative"
             >
               <DashboardView
                 items={items}
@@ -644,205 +804,24 @@ export default function App() {
                   setView("edit");
                 }}
               />
-              <div className="absolute bottom-0 left-0 w-full h-[68px] bg-black border-t border-zinc-900/80 flex justify-center gap-12 text-zinc-500 text-[10px] uppercase font-semibold">
+              <div className="absolute bottom-0 left-0 w-full h-[68px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[10px] uppercase font-semibold">
                 <button
                   onClick={() => setView("home")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "home" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "home" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Shield className="w-5 h-5" />
                   <span>Vault</span>
                 </button>
                 <button
                   onClick={() => setView("dashboard")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <LayoutDashboard className="w-5 h-5" />
                   <span>Audit</span>
                 </button>
                 <button
-                  onClick={() => setView("generator")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "generator" ? "text-white" : "hover:text-zinc-300"}`}
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span>Gen</span>
-                </button>
-                <button
                   onClick={() => setView("settings")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "settings" ? "text-white" : "hover:text-zinc-300"}`}
-                >
-                  <Settings className="w-5 h-5" />
-                  <span>Sync</span>
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {view === "generator" && (
-            <motion.div
-              key="generator"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="p-6 flex flex-col h-full bg-black custom-scrollbar"
-            >
-              <div className="flex items-center gap-4 mb-8 pt-2">
-                <button
-                  onClick={() => setView("home")}
-                  className="p-2 -ml-2 rounded-xl text-zinc-500 hover:text-white hover:bg-zinc-900 transition-colors"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
-                <h2 className="text-xl font-semibold text-white tracking-tight">
-                  Password Generator
-                </h2>
-              </div>
-
-              <div className="space-y-8 flex-1">
-                <div className="bg-zinc-900/50 border border-zinc-800 rounded-[24px] p-6 text-center space-y-6">
-                  <p className="text-2xl font-mono text-white break-all tracking-tight leading-tight select-all">
-                    {generatedPass}
-                  </p>
-
-                  <div className="flex items-center justify-between text-xs font-semibold px-2">
-                    <span className="text-zinc-500 uppercase tracking-widest">
-                      Time to Crack
-                    </span>
-                    <span
-                      className={`px-2.5 py-1 rounded-full ${
-                        calculateTimeToCrack(generatedPass).score >= 4
-                          ? "bg-green-500/10 text-green-400"
-                          : calculateTimeToCrack(generatedPass).score >= 2
-                            ? "bg-yellow-500/10 text-yellow-400"
-                            : "bg-red-500/10 text-red-400"
-                      }`}
-                    >
-                      {calculateTimeToCrack(generatedPass).time}
-                    </span>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(generatedPass);
-                        showToast("Password copied to clipboard", "success");
-                      }}
-                      className="flex-1 bg-white hover:bg-zinc-200 text-black font-semibold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2"
-                    >
-                      <Copy className="w-4 h-4" />
-                      Copy Password
-                    </button>
-                    <button
-                      onClick={() =>
-                        setGeneratedPass(
-                          generateRandomPassword(genLength, genOptions),
-                        )
-                      }
-                      className="p-3.5 bg-zinc-800 text-white rounded-xl hover:bg-zinc-700 transition-all border border-zinc-700 hover:border-zinc-600"
-                    >
-                      <RefreshCcw className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-6 px-1">
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="font-semibold text-white">
-                        Password Length
-                      </span>
-                      <span className="font-mono text-zinc-400 bg-zinc-900 py-1 px-2 rounded-lg">
-                        {genLength}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="8"
-                      max="64"
-                      value={genLength}
-                      onChange={(e) => setGenLength(parseInt(e.target.value))}
-                      className="w-full accent-white h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer"
-                    />
-                  </div>
-
-                  <div className="space-y-3 pt-4">
-                    <span className="text-sm font-semibold text-white">
-                      Characters
-                    </span>
-                    <div className="grid grid-cols-1 gap-2 border border-zinc-800 rounded-2xl p-1 bg-zinc-900/30">
-                      {[
-                        { id: "numbers", label: "Numbers (0-9)" },
-                        { id: "symbols", label: "Symbols (!@#$)" },
-                        { id: "uppercase", label: "Uppercase (A-Z)" },
-                      ].map((opt, i) => (
-                        <button
-                          key={opt.id}
-                          onClick={() =>
-                            setGenOptions({
-                              ...genOptions,
-                              [opt.id]:
-                                !genOptions[opt.id as keyof typeof genOptions],
-                            })
-                          }
-                          className={`flex items-center justify-between p-3.5 rounded-xl transition-all ${
-                            genOptions[opt.id as keyof typeof genOptions]
-                              ? "bg-zinc-800 text-white"
-                              : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-                          }`}
-                        >
-                          <span className="text-sm font-medium">
-                            {opt.label}
-                          </span>
-                          <div
-                            className={`w-5 h-5 flex items-center justify-center ${genOptions[opt.id as keyof typeof genOptions] ? "text-white" : "text-zinc-700"}`}
-                          >
-                            {genOptions[opt.id as keyof typeof genOptions] ? (
-                              <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                className="w-5 h-5"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                              </svg>
-                            ) : (
-                              <div className="w-4 h-4 rounded-full border-2 border-current" />
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute bottom-0 left-0 w-full h-[68px] bg-black border-t border-zinc-900/80 flex justify-center gap-12 text-zinc-500 text-[10px] uppercase font-semibold pb-safe">
-                <button
-                  onClick={() => setView("home")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "home" ? "text-white" : "hover:text-zinc-300"}`}
-                >
-                  <Shield className="w-5 h-5" />
-                  <span>Vault</span>
-                </button>
-                <button
-                  onClick={() => setView("dashboard")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
-                >
-                  <LayoutDashboard className="w-5 h-5" />
-                  <span>Audit</span>
-                </button>
-                <button
-                  onClick={() => setView("generator")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "generator" ? "text-white" : "hover:text-zinc-300"}`}
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span>Gen</span>
-                </button>
-                <button
-                  onClick={() => setView("settings")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "settings" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "settings" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Settings className="w-5 h-5" />
                   <span>Sync</span>
@@ -857,7 +836,7 @@ export default function App() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="h-full relative"
+              className="h-full flex-1 w-full flex flex-col relative"
             >
               <SettingsView
                 items={items}
@@ -910,31 +889,24 @@ export default function App() {
                   }, 100);
                 }}
               />
-              <div className="absolute bottom-0 left-0 w-full h-[68px] bg-black border-t border-zinc-900/80 flex justify-center gap-12 text-zinc-500 text-[10px] uppercase font-semibold">
+              <div className="absolute bottom-0 left-0 w-full h-[68px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[10px] uppercase font-semibold">
                 <button
                   onClick={() => setView("home")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "home" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "home" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Shield className="w-5 h-5" />
                   <span>Vault</span>
                 </button>
                 <button
                   onClick={() => setView("dashboard")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <LayoutDashboard className="w-5 h-5" />
                   <span>Audit</span>
                 </button>
                 <button
-                  onClick={() => setView("generator")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "generator" ? "text-white" : "hover:text-zinc-300"}`}
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span>Gen</span>
-                </button>
-                <button
                   onClick={() => setView("settings")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${view === "settings" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "settings" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Settings className="w-5 h-5" />
                   <span>Sync</span>
@@ -971,7 +943,6 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
     </div>
   );
 }

@@ -174,26 +174,20 @@ export default function Settings({
         if (decrypted) {
           const parsed = JSON.parse(decrypted);
           onImport(parsed);
-          setAlertMessage({
-            text: "Vault restored successfully!",
-            type: "success",
-          });
+          onShowToast("Vault restored successfully!", "success");
         } else {
-          setAlertMessage({
-            text: "Invalid backup file or master password",
-            type: "error",
-          });
+          onShowToast("Invalid backup file or master password", "error");
         }
       } catch (e) {
-        setAlertMessage({ text: "Failed to restore backup", type: "error" });
+        onShowToast("Failed to restore backup", "error");
       }
     };
     reader.readAsText(file);
   };
 
   return (
-    <div className="p-6 flex flex-col h-full bg-black custom-scrollbar overflow-y-auto pt-8 pb-24">
-      <div className="flex items-center gap-4 mb-8">
+    <div className="px-4 flex flex-col h-full flex-1 w-full bg-black custom-scrollbar overflow-y-auto pt-6 pb-24">
+      <div className="flex items-center gap-4 mb-6">
         <button
           onClick={onBack}
           className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-500 hover:text-white transition-colors"
@@ -213,7 +207,7 @@ export default function Settings({
               Your vault is protected with AES-256 encryption. All data is
               stored locally in your browser.
             </p>
-            <div className="flex items-center justify-between py-2">
+            <div className="flex flex-col gap-3 py-2">
               <div>
                 <h4 className="text-sm font-semibold text-white">
                   Auto-Lock Timeout
@@ -228,7 +222,7 @@ export default function Settings({
                   const val = parseInt(e.target.value);
                   onUpdateAutoLock(val);
                 }}
-                className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2 outline-none focus:border-zinc-500 transition-colors"
+                className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2 outline-none focus:border-zinc-500 transition-colors"
               >
                 <option value="60000">1 Minute</option>
                 <option value="300000">5 Minutes</option>
@@ -244,28 +238,6 @@ export default function Settings({
               <Lock className="w-4 h-4" />
               Lock Vault Now
             </button>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <p className="text-sm font-semibold text-zinc-400 px-1">Appearance</p>
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <h4 className="text-sm font-semibold text-white">Accent Color</h4>
-                <p className="text-xs text-zinc-500 mt-1">Personalize your vault</p>
-              </div>
-              <select
-                value={theme}
-                onChange={(e) => onUpdateTheme(e.target.value)}
-                className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2 outline-none focus:border-zinc-500 transition-colors"
-              >
-                <option value="apple-blue">Apple Blue</option>
-                <option value="orange">Orange</option>
-                <option value="purple">Purple</option>
-                <option value="emerald">Emerald</option>
-              </select>
-            </div>
           </div>
         </div>
 
@@ -346,38 +318,6 @@ export default function Settings({
           </div>
         </div>
 
-        <div className="space-y-4">
-          <p className="text-sm font-semibold text-zinc-400 px-1">
-            Integration
-          </p>
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5 space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h4 className="text-sm font-semibold text-white">
-                  Vault Autofill Bookmarklet
-                </h4>
-                <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                  Drag the button below to your bookmarks bar. Click it on any
-                  website to open your vault and automatically search for saved
-                  passwords for that site.
-                </p>
-              </div>
-              <Globe className="w-6 h-6 text-zinc-600 shrink-0 mt-1" />
-            </div>
-            <a
-              href={`javascript:window.open('${typeof window !== "undefined" ? window.location.origin + window.location.pathname : ""}?search='+encodeURIComponent(window.location.hostname),'_blank')`}
-              className="inline-flex items-center justify-center w-full py-3 bg-zinc-800 text-white text-sm font-medium rounded-xl hover:bg-zinc-700 transition-all gap-2 border border-accent/30 hover:border-accent/50"
-              onClick={(e) => {
-                e.preventDefault();
-                onShowToast("Drag this button to your bookmarks bar!", "info");
-              }}
-            >
-              <Globe className="w-4 h-4 text-accent" />
-              Vault Autofill
-            </a>
-          </div>
-        </div>
-
         <div className="pt-4">
           <button
             onClick={() => setShowConfirmWipe(true)}
@@ -403,7 +343,7 @@ export default function Settings({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-6 shadow-2xl"
+              className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-5 shadow-2xl"
             >
               <div className="flex flex-col items-center text-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">

@@ -35,6 +35,7 @@ interface AddVaultItemProps {
   onRestore?: (id: string) => void;
   onCancel: () => void;
   decryptedPassword?: string;
+  onShowToast: (text: string, type?: "success" | "error" | "info") => void;
 }
 
 export default function AddVaultItem({
@@ -46,6 +47,7 @@ export default function AddVaultItem({
   onRestore,
   onCancel,
   decryptedPassword = "",
+  onShowToast,
 }: AddVaultItemProps) {
   const [category, setCategory] = useState<VaultItem["category"]>(
     item?.category || "Login",
@@ -137,9 +139,9 @@ export default function AddVaultItem({
       encryptedTotpSecret = encrypt(totpSecret.trim(), masterPassword);
     }
 
-    if (category === "Login" && window.PasswordCredential && !item) {
+    if (category === "Login" && (window as any).PasswordCredential && !item) {
       try {
-        const cred = new PasswordCredential({
+        const cred = new (window as any).PasswordCredential({
           id: username || title,
           password: password,
           name: title,
@@ -219,7 +221,7 @@ export default function AddVaultItem({
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
       className="absolute inset-0 bg-black flex flex-col z-10"
     >
-      <header className="px-6 pt-8 pb-4 flex items-center justify-between border-b border-zinc-900 bg-black">
+      <header className="px-4 pt-8 pb-4 flex items-center justify-between border-b border-zinc-900 bg-black">
         <button
           onClick={onCancel}
           className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-500 hover:text-white transition-colors"
@@ -234,25 +236,25 @@ export default function AddVaultItem({
 
       <form
         onSubmit={handleSubmit}
-        className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar pb-24"
+        className="flex-1 overflow-y-auto px-4 py-6 space-y-5 no-scrollbar pb-24"
       >
         {/* Category Picker */}
-        <div className="flex gap-2 p-1.5 bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-x-auto no-scrollbar">
+        <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl">
           {(["Login", "Card", "Note", "Identity"] as const).map((cat) => (
             <button
               key={cat}
               type="button"
               onClick={() => setCategory(cat)}
-              className={`flex-1 min-w-[80px] flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-medium transition-all ${
                 category === cat
                   ? "bg-zinc-800 text-white shadow-sm border border-zinc-700"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              {cat === "Login" && <Key className="w-3.5 h-3.5" />}
-              {cat === "Card" && <CreditCard className="w-3.5 h-3.5" />}
-              {cat === "Note" && <FileText className="w-3.5 h-3.5" />}
-              {cat === "Identity" && <User className="w-3.5 h-3.5" />}
+              {cat === "Login" && <Key className="w-4 h-4 mb-0.5" />}
+              {cat === "Card" && <CreditCard className="w-4 h-4 mb-0.5" />}
+              {cat === "Note" && <FileText className="w-4 h-4 mb-0.5" />}
+              {cat === "Identity" && <User className="w-4 h-4 mb-0.5" />}
               {cat}
             </button>
           ))}
@@ -286,7 +288,7 @@ export default function AddVaultItem({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-4">
             <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-4 space-y-1.5 focus-within:border-zinc-700 transition-all">
               <label className="text-xs font-semibold text-zinc-500 block">
                 Folder
@@ -294,7 +296,7 @@ export default function AddVaultItem({
               <select
                 value={folderId}
                 onChange={(e) => setFolderId(e.target.value)}
-                className="w-full bg-transparent border-none py-2 text-white text-sm font-medium outline-none cursor-pointer appearance-none"
+                className="w-full bg-transparent border-none py-2 text-white text-sm font-medium outline-none cursor-pointer appearance-none min-w-0"
               >
                 <option value="" className="text-zinc-900">
                   None
@@ -316,14 +318,14 @@ export default function AddVaultItem({
                   type="color"
                   value={customIconColor || "#3b82f6"}
                   onChange={(e) => setCustomIconColor(e.target.value)}
-                  className="w-6 h-6 rounded cursor-pointer border-none p-0 bg-transparent"
+                  className="w-6 h-6 rounded cursor-pointer border-none p-0 bg-transparent flex-shrink-0"
                 />
                 <input
                   type="text"
                   value={customIcon}
                   onChange={(e) => setCustomIcon(e.target.value)}
                   placeholder="Emoji, URL, etc."
-                  className="w-full bg-transparent border-none outline-none text-white text-sm font-medium placeholder:text-zinc-700"
+                  className="w-full min-w-0 bg-transparent border-none outline-none text-white text-sm font-medium placeholder:text-zinc-700"
                 />
               </div>
             </div>
@@ -441,16 +443,16 @@ export default function AddVaultItem({
                           className="w-2/3 accent-[var(--accent)]"
                         />
                       </div>
-                      <div className="flex flex-wrap gap-4 text-xs font-medium text-zinc-400">
-                        <label className="flex items-center gap-2 cursor-pointer">
+                      <div className="flex flex-wrap gap-3 text-xs font-medium text-zinc-400">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
                           <input type="checkbox" checked={genOptions.numbers} onChange={e => setGenOptions({...genOptions, numbers: e.target.checked})} className="accent-[var(--accent)] rounded" />
                           Numbers
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
                           <input type="checkbox" checked={genOptions.symbols} onChange={e => setGenOptions({...genOptions, symbols: e.target.checked})} className="accent-[var(--accent)] rounded" />
                           Symbols
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
                           <input type="checkbox" checked={genOptions.uppercase} onChange={e => setGenOptions({...genOptions, uppercase: e.target.checked})} className="accent-[var(--accent)] rounded" />
                           Uppercase
                         </label>
@@ -533,7 +535,7 @@ export default function AddVaultItem({
                 </div>
 
                 <div className="relative z-10 space-y-4">
-                  <div className="font-mono text-2xl tracking-widest textShadow flex justify-between gap-2 break-all">
+                  <div className="font-mono text-xl tracking-wider textShadow flex justify-between gap-1 break-all">
                     {cardDetails.number || "•••• •••• •••• ••••"}
                   </div>
                   <div className="flex justify-between items-end">

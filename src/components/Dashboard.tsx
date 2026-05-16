@@ -6,7 +6,7 @@ import { decrypt } from '../lib/crypto';
 
 interface DashboardProps {
   items: VaultItem[];
-  audit: { score: number, weak: number, reused: number, old: number, breached: number, breachedIds: string[] };
+  audit: { score: number, reused: number, breached: number, breachedIds: string[] };
   masterPassword?: string;
   onBack: () => void;
   onEdit: (item: VaultItem) => void;
@@ -38,11 +38,6 @@ export default function Dashboard({ items, audit, masterPassword, onBack, onEdit
         });
         const reusedIds = new Set(Object.values(passCounts).filter(ids => ids.length > 1).flat());
         return items.filter(i => reusedIds.has(i.id));
-      case 'Weak Credentials':
-        return items.filter(i => (i.strength || 0) < 3 && i.category === 'Login');
-      case 'Older than 90 days':
-        const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
-        return items.filter(i => Date.now() - i.updatedAt > NINETY_DAYS && i.category === 'Login');
       case 'Pwned / Breached':
         return items.filter(i => audit.breachedIds.includes(i.id));
       default:
@@ -51,8 +46,8 @@ export default function Dashboard({ items, audit, masterPassword, onBack, onEdit
   };
 
   return (
-    <div className="flex flex-col h-full bg-black no-scrollbar overflow-y-auto px-6 pt-8 pb-24">
-      <header className="flex items-center gap-4 mb-8">
+    <div className="flex flex-col h-full flex-1 w-full bg-black no-scrollbar overflow-y-auto px-4 pt-6 pb-24">
+      <header className="flex items-center gap-4 mb-6">
         <button 
           onClick={onBack}
           className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-500 transition-colors"
@@ -102,16 +97,16 @@ export default function Dashboard({ items, audit, masterPassword, onBack, onEdit
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-4 space-y-2">
-            <Key className="w-5 h-5 text-zinc-500" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-3 space-y-2">
+            <Key className="w-4 h-4 text-zinc-500" />
             <div>
               <span className="text-2xl font-semibold text-white">{categories.Login}</span>
               <p className="text-xs font-medium text-zinc-500">Logins Saved</p>
             </div>
           </div>
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-4 space-y-2">
-            <Zap className="w-5 h-5 text-zinc-500" />
+          <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-3 space-y-2">
+            <Zap className="w-4 h-4 text-zinc-500" />
             <div>
               <span className="text-2xl font-semibold text-white">{items.length}</span>
               <p className="text-xs font-medium text-zinc-500">Total Items</p>
@@ -127,16 +122,14 @@ export default function Dashboard({ items, audit, masterPassword, onBack, onEdit
             {[
               { label: 'Pwned / Breached', count: audit.breached, icon: <AlertTriangle className="w-5 h-5" />, color: 'text-red-500', bg: 'bg-red-500/20 border-red-500/30 font-bold' },
               { label: 'Reused Passwords', count: audit.reused, icon: <AlertTriangle className="w-5 h-5" />, color: 'text-orange-500', bg: 'bg-orange-500/10 border-orange-500/20' },
-              { label: 'Weak Credentials', count: audit.weak, icon: <Zap className="w-5 h-5" />, color: 'text-yellow-500', bg: 'bg-yellow-500/10 border-yellow-500/20' },
-              { label: 'Older than 90 days', count: audit.old, icon: <Clock className="w-5 h-5" />, color: 'text-zinc-400', bg: 'bg-zinc-900/50 border-zinc-800' },
             ].map((v, i) => (
               <div key={i} className="space-y-2">
                 <button
                   onClick={() => setExpandedIssue(expandedIssue === v.label ? null : v.label)}
                   disabled={v.count === 0}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${v.count > 0 ? v.bg + ' cursor-pointer' : 'opacity-50 cursor-default bg-zinc-900/30 border-transparent'}`}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${v.count > 0 ? v.bg + ' cursor-pointer' : 'opacity-50 cursor-default bg-zinc-900/30 border-transparent'}`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <div className={`${v.count > 0 ? v.color : 'text-zinc-600'}`}>
                       {v.icon}
                     </div>

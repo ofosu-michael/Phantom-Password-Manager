@@ -232,9 +232,9 @@ export default function VaultList({
   };
 
   return (
-    <div className="flex flex-col h-full bg-black">
+    <div className="flex flex-col h-full flex-1 w-full bg-black">
       {/* Header */}
-      <header className="px-6 pt-8 pb-4 space-y-6">
+      <header className="px-4 pt-6 pb-4 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full flex items-center justify-center bg-white">
@@ -292,8 +292,6 @@ export default function VaultList({
             { id: "Card", label: "Cards" },
             { id: "Note", label: "Notes" },
             { id: "Identity", label: "Identities" },
-            { id: "Weak", label: "Weak" },
-            { id: "Old", label: "Old" },
             ...tags.map((tag) => ({ id: tag, label: `#${tag}` })),
           ].map((cat) => (
             <button
@@ -341,21 +339,21 @@ export default function VaultList({
         )}
 
         {/* Search & Sort */}
-        <div className="flex gap-2">
-          <div className="relative group w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 transition-colors" />
+        <div className="flex gap-1.5 items-center">
+          <div className="relative group flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 transition-colors" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search..."
-              className="w-full bg-zinc-900/50 border border-zinc-800 rounded-2xl py-3 pl-10 pr-4 outline-none focus:border-zinc-700 transition-colors text-sm text-white placeholder:text-zinc-600"
+              className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 pl-9 pr-3 outline-none focus:border-zinc-700 transition-colors text-sm text-white placeholder:text-zinc-600"
             />
           </div>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="bg-zinc-900/50 border border-zinc-800 rounded-2xl py-3 px-4 outline-none focus:border-zinc-700 transition-colors text-sm text-white appearance-none cursor-pointer hover:bg-zinc-800 text-center"
+            className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-2 outline-none focus:border-zinc-700 transition-colors text-[11px] sm:text-xs text-white appearance-none cursor-pointer hover:bg-zinc-800 text-center min-w-[70px] flex-shrink-0"
           >
             <option value="Recent">Recent</option>
             <option value="A-Z">A-Z</option>
@@ -372,7 +370,7 @@ export default function VaultList({
                 setSelectedIds(filteredItems.map((i) => i.id));
               }
             }}
-            className={`w-12 h-[46px] flex-shrink-0 bg-zinc-900/50 border border-zinc-800 rounded-2xl flex items-center justify-center transition-colors cursor-pointer hover:bg-zinc-800 ${
+            className={`w-9 h-[38px] flex-shrink-0 bg-zinc-900/50 border border-zinc-800 rounded-xl flex items-center justify-center transition-colors cursor-pointer hover:bg-zinc-800 ${
               selectedIds.length > 0
                 ? "text-accent border-accent/50"
                 : "text-zinc-500"
@@ -385,7 +383,7 @@ export default function VaultList({
       </header>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-6 pb-24 space-y-2 no-scrollbar">
+      <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-2 no-scrollbar">
         {activeCategory === "All" && !search && (
           <div className="flex items-center justify-between mt-2 mb-4">
             <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
@@ -714,7 +712,7 @@ export default function VaultList({
                   key={item.id}
                   layout
                   draggable={selectedIds.length === 0}
-                  onDragStart={(e) => {
+                  onDragStart={(e: any) => {
                     if (selectedIds.length > 0) {
                       e.preventDefault();
                       return;
@@ -728,7 +726,7 @@ export default function VaultList({
                     selectedIds.includes(item.id)
                       ? "bg-accent/10 border-accent/50"
                       : "bg-zinc-900/40 border-zinc-800/50 hover:border-zinc-700"
-                  } rounded-2xl p-4 transition-all cursor-pointer flex items-center gap-4`}
+                  } rounded-2xl p-3 transition-all cursor-pointer flex items-center gap-3`}
                   onClick={(e) => {
                     if (
                       selectedIds.length > 0 ||
