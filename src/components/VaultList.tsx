@@ -111,6 +111,8 @@ export default function VaultList({
   const [sortBy, setSortBy] = useState<"Recent" | "A-Z" | "Z-A">("Recent");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
   // Timer for TOTP
   const [timeRemaining, setTimeRemaining] = useState(
@@ -383,7 +385,26 @@ export default function VaultList({
       </header>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-3 pb-16 space-y-1.5 no-scrollbar">
+      <div
+        className="flex-1 overflow-y-auto px-3 pb-16 space-y-1.5 no-scrollbar"
+        onDragOver={(e) => {
+          if (draggedItemId) {
+            e.preventDefault();
+            setDragOverFolderId("__root__");
+          }
+        }}
+        onDragLeave={(e) => {
+          setDragOverFolderId(null);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOverFolderId(null);
+          if (dragOverFolderId === "__root__" && draggedItemId && onMoveToFolder) {
+            onMoveToFolder(draggedItemId, null);
+            onShowToast("Moved to root", "success");
+          }
+        }}
+      >
         {activeCategory === "All" && !search && (
           <div className="flex items-center justify-between mt-1 mb-2">
             <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
@@ -463,184 +484,220 @@ export default function VaultList({
         {!activeFolder &&
           !search &&
           activeCategory === "All" &&
-          folders.map((folder) => (
-            <motion.div
-              key={`folder-${folder.id}`}
-              layout
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="group relative bg-zinc-900/20 hover:bg-zinc-900/60 border border-zinc-800/30 hover:border-zinc-800 rounded-xl p-3 transition-all cursor-pointer flex items-center gap-3"
-              onClick={() => {
-                if (editingFolderId !== folder.id) {
-                  setActiveFolder(folder.id);
+          folders.map((folder) => {
+            const folderItemCount = items.filter(
+              (i) => i.folderId === folder.id && !i.deletedAt,
+            ).length;
+
+            return (
+              <motion.div
+                key={`folder-${folder.id}`}
+                layout
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`group relative border rounded-xl p-3 transition-all duration-200 cursor-pointer ${
+                  dragOverFolderId === folder.id
+                    ? "border-dashed border-2 bg-zinc-900/80 scale-[1.01]"
+                    : "bg-zinc-900/20 hover:bg-zinc-900/50 border-zinc-800/40 hover:border-zinc-700/60"
+                }`}
+                style={
+                  dragOverFolderId === folder.id
+                    ? { borderColor: `${folder.color || "#3b82f6"}60`, backgroundColor: `${folder.color || "#3b82f6"}08` }
+                    : {}
                 }
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.currentTarget.style.borderColor = folder.color || "#3b82f6";
-                e.currentTarget.style.backgroundColor = `${folder.color || "#3b82f6"}20`;
-              }}
-              onDragLeave={(e) => {
-                e.currentTarget.style.borderColor = "";
-                e.currentTarget.style.backgroundColor = "";
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.currentTarget.style.borderColor = "";
-                e.currentTarget.style.backgroundColor = "";
-                const itemId = e.dataTransfer.getData("text/plain");
-                if (itemId && onMoveToFolder) {
-                  onMoveToFolder(itemId, folder.id);
-                  onShowToast("Moved to folder", "success");
-                }
-              }}
-            >
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{
-                  backgroundColor: `${folder.color || "#3b82f6"}20`,
-                  color: folder.color || "#3b82f6",
+                onClick={() => {
+                  if (editingFolderId !== folder.id) {
+                    setActiveFolder(folder.id);
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverFolderId(folder.id);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setDragOverFolderId(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverFolderId(null);
+                  const itemId = e.dataTransfer.getData("text/plain");
+                  if (itemId && onMoveToFolder) {
+                    onMoveToFolder(itemId, folder.id);
+                    onShowToast(`Moved to ${folder.name}`, "success");
+                  }
                 }}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                {editingFolderId === folder.id ? (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (editingFolderName.trim() && onRenameFolder) {
-                        onRenameFolder(folder.id, editingFolderName.trim());
-                      }
-                      setEditingFolderId(null);
-                    }}
-                    className="flex items-center gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <input
-                      type="text"
-                      autoFocus
-                      value={editingFolderName}
-                      onChange={(e) => setEditingFolderName(e.target.value)}
-                      className="w-full bg-zinc-800 text-white outline-none border border-zinc-700/50 rounded px-1.5 -mx-1.5 py-0.5 font-medium focus:border-zinc-500 focus:bg-zinc-700/50 transition-colors text-xs"
-                      onBlur={() => {
-                        if (editingFolderName.trim() && onRenameFolder) {
-                          onRenameFolder(folder.id, editingFolderName.trim());
-                        }
-                        setEditingFolderId(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                          setEditingFolderId(null);
-                        }
-                      }}
-                      onFocus={(e) => e.target.select()}
-                    />
-                  </form>
-                ) : (
-                  <>
-                    <h3 className="text-white font-medium text-sm truncate">
-                      {folder.name}
-                    </h3>
-                    <p className="text-zinc-500 text-[10px]">Folder</p>
-                  </>
-                )}
-              </div>
-
-              {editingFolderId !== folder.id && (
-                <>
+                <div className="flex items-center gap-3">
+                  {/* Folder icon with gradient */}
                   <div
-                    className={`flex items-center space-x-1 transition-opacity z-10 ${
-                      folderMenuOpen === folder.id
-                        ? "opacity-100"
-                        : "sm:opacity-0 group-hover:opacity-100"
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                      dragOverFolderId === folder.id ? "scale-110" : "group-hover:scale-105"
                     }`}
-                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      background: `linear-gradient(135deg, ${folder.color || "#3b82f6"}30, ${folder.color || "#3b82f6"}15)`,
+                      boxShadow: `inset 0 1px 0 ${folder.color || "#3b82f6"}20`,
+                    }}
                   >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFolderMenuOpen(
-                          folderMenuOpen === folder.id ? null : folder.id,
-                        );
-                      }}
-                      className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors"
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ color: folder.color || "#3b82f6" }}
                     >
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
-                    {folderMenuOpen === folder.id && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-40"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFolderMenuOpen(null);
+                      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+                      <path d="M2 10h20" />
+                    </svg>
+                  </div>
+
+                  {/* Folder info */}
+                  <div className="flex-1 min-w-0">
+                    {editingFolderId === folder.id ? (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (editingFolderName.trim() && onRenameFolder) {
+                            onRenameFolder(folder.id, editingFolderName.trim());
+                          }
+                          setEditingFolderId(null);
+                        }}
+                        className="flex items-center gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="text"
+                          autoFocus
+                          value={editingFolderName}
+                          onChange={(e) => setEditingFolderName(e.target.value)}
+                          className="w-full bg-zinc-800 text-white outline-none border border-zinc-700/50 rounded-lg px-2 py-1 font-medium focus:border-zinc-500 focus:bg-zinc-700/50 transition-colors text-sm"
+                          onBlur={() => {
+                            if (editingFolderName.trim() && onRenameFolder) {
+                              onRenameFolder(
+                                folder.id,
+                                editingFolderName.trim(),
+                              );
+                            }
+                            setEditingFolderId(null);
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setEditingFolderId(null);
+                            }
+                          }}
+                          onFocus={(e) => e.target.select()}
                         />
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                          transition={{ duration: 0.1, ease: "easeOut" }}
-                          className="absolute right-4 top-10 w-48 bg-zinc-800/80 backdrop-blur-2xl border border-white/10 rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-50 flex flex-col"
-                        >
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingFolderName(folder.name);
-                              setEditingFolderId(folder.id);
-                              setFolderMenuOpen(null);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-white hover:bg-white/10 transition-colors flex items-center justify-between border-b border-white/5 active:bg-white/20"
-                          >
-                            Rename
-                            <Edit2 className="w-3.5 h-3.5 text-zinc-400" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (
-                                window.confirm(
-                                  `Delete the folder "${folder.name}"? Items inside will be moved to the root.`,
-                                ) &&
-                                onDeleteFolder
-                              ) {
-                                onDeleteFolder(folder.id);
-                              }
-                              setFolderMenuOpen(null);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-500/10 transition-colors flex items-center justify-between active:bg-red-500/20"
-                          >
-                            Delete
-                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                          </button>
-                        </motion.div>
-                      </>
+                      </form>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-white font-medium text-sm truncate">
+                            {folder.name}
+                          </h3>
+                          <p className="text-zinc-500 text-[10px] mt-0.5">
+                            {folderItemCount} item{folderItemCount !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        {dragOverFolderId === folder.id && (
+                          <span className="text-[10px] font-medium text-accent flex-shrink-0 ml-2">
+                            Move here
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
-                  <ChevronRight
-                    className={`w-4 h-4 text-zinc-600 transition-opacity absolute right-3 ${
-                      folderMenuOpen === folder.id
-                        ? "opacity-0"
-                        : "sm:group-hover:opacity-0"
-                    }`}
-                  />
-                </>
-              )}
-            </motion.div>
-          ))}
+
+                  {/* Actions */}
+                  {editingFolderId !== folder.id && (
+                    <>
+                      <div
+                        className={`flex items-center transition-opacity z-10 ${
+                          folderMenuOpen === folder.id
+                            ? "opacity-100"
+                            : "opacity-0 group-hover:opacity-100"
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFolderMenuOpen(
+                              folderMenuOpen === folder.id ? null : folder.id,
+                            );
+                          }}
+                          className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <ChevronRight
+                        className={`w-4 h-4 text-zinc-600 transition-opacity ${
+                          folderMenuOpen === folder.id ? "opacity-0" : "group-hover:opacity-0"
+                        }`}
+                      />
+                    </>
+                  )}
+                </div>
+
+                {/* Folder menu dropdown */}
+                {folderMenuOpen === folder.id && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFolderMenuOpen(null);
+                      }}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                      transition={{ duration: 0.1, ease: "easeOut" }}
+                      className="absolute right-3 top-12 w-44 bg-zinc-800/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-50 flex flex-col"
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingFolderName(folder.name);
+                          setEditingFolderId(folder.id);
+                          setFolderMenuOpen(null);
+                        }}
+                        className="w-full text-left px-3 py-2.5 text-xs font-medium text-white hover:bg-white/10 transition-colors flex items-center justify-between border-b border-white/5 active:bg-white/20"
+                      >
+                        Rename
+                        <Edit2 className="w-3.5 h-3.5 text-zinc-400" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (
+                            window.confirm(
+                              `Delete "${folder.name}"? Items will be moved to root.`,
+                            ) && onDeleteFolder
+                          ) {
+                            onDeleteFolder(folder.id);
+                          }
+                          setFolderMenuOpen(null);
+                        }}
+                        className="w-full text-left px-3 py-2.5 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors flex items-center justify-between active:bg-red-500/20"
+                      >
+                        Delete
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </motion.div>
+            );
+          })}
 
         <AnimatePresence mode="popLayout">
           {filteredItems.length === 0 &&
@@ -718,15 +775,23 @@ export default function VaultList({
                       return;
                     }
                     e.dataTransfer.setData("text/plain", item.id);
+                    e.dataTransfer.effectAllowed = "move";
+                    setDraggedItemId(item.id);
                   }}
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
+                  onDragEnd={() => {
+                    setDraggedItemId(null);
+                    setDragOverFolderId(null);
+                  }}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.98 }}
-                  className={`group relative hover:bg-zinc-800 border ${
-                    selectedIds.includes(item.id)
-                      ? "bg-accent/10 border-accent/50"
-                      : "bg-zinc-900/40 border-zinc-800/50 hover:border-zinc-700"
-                  } rounded-xl p-2.5 transition-all cursor-pointer flex items-center gap-2.5`}
+                  className={`group relative border rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-2.5 ${
+                    draggedItemId === item.id
+                      ? "opacity-40 scale-[0.98] border-zinc-700 bg-zinc-900/20"
+                      : selectedIds.includes(item.id)
+                        ? "bg-accent/10 border-accent/50"
+                        : "bg-zinc-900/40 border-zinc-800/50 hover:bg-zinc-800/60 hover:border-zinc-700"
+                  } p-2.5`}
                   onClick={(e) => {
                     if (
                       selectedIds.length > 0 ||
@@ -745,6 +810,18 @@ export default function VaultList({
                     }
                   }}
                 >
+                  {/* Drag handle indicator */}
+                  <div className="flex-shrink-0 opacity-0 group-hover:opacity-40 transition-opacity cursor-grab active:cursor-grabbing">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" className="text-zinc-400">
+                      <circle cx="3" cy="2" r="1" />
+                      <circle cx="9" cy="2" r="1" />
+                      <circle cx="3" cy="6" r="1" />
+                      <circle cx="9" cy="6" r="1" />
+                      <circle cx="3" cy="10" r="1" />
+                      <circle cx="9" cy="10" r="1" />
+                    </svg>
+                  </div>
+
                   <div className="relative">
                     <div
                       className={`absolute -top-1.5 -left-1.5 z-10 transition-all duration-200 ${selectedIds.length > 0 || selectedIds.includes(item.id) ? "opacity-100 scale-100" : "opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100"}`}
@@ -770,7 +847,7 @@ export default function VaultList({
                       </button>
                     </div>
                     <div
-                      className="w-9 h-9 bg-zinc-900 rounded-lg border border-zinc-800 flex items-center justify-center flex-shrink-0 bg-cover bg-center overflow-hidden"
+                      className="w-9 h-9 bg-zinc-900 rounded-lg border border-zinc-800 flex items-center justify-center flex-shrink-0 bg-cover bg-center overflow-hidden transition-transform duration-200 group-hover:scale-105"
                       style={
                         item.customIconColor
                           ? { backgroundColor: item.customIconColor }
@@ -818,10 +895,10 @@ export default function VaultList({
                           {item.title}
                         </h3>
                         {item.isFavorite && (
-                          <Star className="w-2.5 h-2.5 text-yellow-500 fill-current" />
+                          <Star className="w-2.5 h-2.5 text-yellow-500 fill-current flex-shrink-0" />
                         )}
                         {audit.breachedIds.includes(item.id) && (
-                          <span className="flex items-center gap-0.5 text-[9px] uppercase font-bold text-red-500 bg-red-500/10 px-1 py-0.5 rounded-full">
+                          <span className="flex items-center gap-0.5 text-[9px] uppercase font-bold text-red-500 bg-red-500/10 px-1 py-0.5 rounded-full flex-shrink-0">
                             <AlertTriangle className="w-2.5 h-2.5" /> Pwned
                           </span>
                         )}
@@ -840,19 +917,19 @@ export default function VaultList({
 
                         {totpCode && (
                           <div
-                            className="flex items-center gap-1 bg-zinc-800/80 px-1.5 py-0.5 rounded text-white font-mono select-all border border-zinc-700/50"
+                            className="flex items-center gap-1 bg-zinc-800/80 px-1.5 py-0.5 rounded text-white font-mono select-all border border-zinc-700/50 flex-shrink-0"
                             onClick={(e) => {
                               e.stopPropagation();
                               copyToClipboard(totpCode, item.id + "-totp");
                             }}
                           >
-                            <Clock className="w-2.5 h-2.5 opacity-50" />
+                            <Clock className="w-2.5 h-2.5 opacity-50 flex-shrink-0" />
                             <span className="text-[10px]">
                               {copiedId === item.id + "-totp"
                                 ? "Copied"
                                 : `${totpCode.slice(0, 3)} ${totpCode.slice(3)}`}
                             </span>
-                            <div className="relative w-2.5 h-2.5 flex items-center justify-center">
+                            <div className="relative w-2.5 h-2.5 flex items-center justify-center flex-shrink-0">
                               <svg
                                 className="-rotate-90 w-2.5 h-2.5"
                                 viewBox="0 0 36 36"
@@ -899,7 +976,7 @@ export default function VaultList({
                       <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
                     </div>
                   </div>
-                </motion.div>,
+                  </motion.div>,
               );
 
               return elements;

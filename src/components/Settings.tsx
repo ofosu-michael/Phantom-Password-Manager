@@ -9,8 +9,6 @@ import {
   FileText,
   Shield,
   AlertTriangle,
-  X,
-  Globe,
 } from "lucide-react";
 import Papa from "papaparse";
 import { VaultItem } from "../types";
@@ -144,7 +142,7 @@ export default function Settings({
         } else {
           onShowToast("No valid passwords found in CSV.", "error");
         }
-        e.target.value = ""; // Reset to allow re-importing same file
+        e.target.value = "";
       },
       error: () => {
         onShowToast("Failed to read CSV file.", "error");
@@ -186,131 +184,109 @@ export default function Settings({
   };
 
   return (
-    <div className="px-3 flex flex-col h-full flex-1 w-full bg-black custom-scrollbar overflow-y-auto pt-4 pb-20">
-      <div className="flex items-center gap-4 mb-6">
+    <div className="px-3 flex flex-col h-full flex-1 w-full bg-black custom-scrollbar overflow-y-auto pt-3 pb-20">
+      <div className="flex items-center gap-3 mb-4">
         <button
           onClick={onBack}
-          className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-500 hover:text-white transition-colors"
+          className="p-1.5 -ml-1.5 hover:bg-zinc-900 rounded-lg text-zinc-500 hover:text-white transition-colors"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-4 h-4" />
         </button>
-        <h2 className="text-xl font-semibold text-white tracking-tight">
+        <h2 className="text-base font-semibold text-white tracking-tight">
           Settings
         </h2>
       </div>
 
-      <div className="space-y-8 flex-1">
-        <div className="space-y-4">
-          <p className="text-sm font-semibold text-zinc-400 px-1">Security</p>
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5 space-y-4">
-            <p className="text-sm text-zinc-400 leading-relaxed">
-              Your vault is protected with AES-256 encryption. All data is
-              stored locally in your browser.
+      <div className="space-y-4 flex-1">
+        {/* Security */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-zinc-400 px-1">Security</p>
+          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-3">
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Your vault is protected with AES-256 encryption. All data is stored locally.
             </p>
-            <div className="flex flex-col gap-3 py-2">
-              <div>
-                <h4 className="text-sm font-semibold text-white">
-                  Auto-Lock Timeout
-                </h4>
-                <p className="text-xs text-zinc-500 mt-1">
-                  Lock vault after inactivity
-                </p>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-semibold text-white">Auto-Lock</h4>
+                  <p className="text-[10px] text-zinc-500">Lock after inactivity</p>
+                </div>
+                <select
+                  value={autoLockTimeout.toString()}
+                  onChange={(e) => onUpdateAutoLock(parseInt(e.target.value))}
+                  className="bg-zinc-800 border border-zinc-700 text-white text-xs rounded-lg px-2 py-1.5 outline-none focus:border-zinc-500"
+                >
+                  <option value="60000">1 min</option>
+                  <option value="300000">5 min</option>
+                  <option value="900000">15 min</option>
+                  <option value="3600000">1 hour</option>
+                  <option value="0">Never</option>
+                </select>
               </div>
-              <select
-                value={autoLockTimeout.toString()}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  onUpdateAutoLock(val);
-                }}
-                className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2 outline-none focus:border-zinc-500 transition-colors"
-              >
-                <option value="60000">1 Minute</option>
-                <option value="300000">5 Minutes</option>
-                <option value="900000">15 Minutes</option>
-                <option value="3600000">1 Hour</option>
-                <option value="0">Never</option>
-              </select>
             </div>
             <button
               onClick={onLock}
-              className="w-full py-3.5 bg-zinc-800 text-white text-sm font-semibold rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-zinc-800 text-white text-xs font-semibold rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-2"
             >
-              <Lock className="w-4 h-4" />
+              <Lock className="w-3.5 h-3.5" />
               Lock Vault Now
             </button>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <p className="text-sm font-semibold text-zinc-400 px-1">
-            Data Management
-          </p>
-          <div className="grid grid-cols-1 gap-3">
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5 space-y-4">
+        {/* Data Management */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-zinc-400 px-1">Data</p>
+          <div className="space-y-2">
+            {/* Import/Export */}
+            <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-sm font-semibold text-white">
-                    Import / Export
-                  </h4>
-                  <p className="text-xs text-zinc-500 mt-1">
-                    Supports Phantom, 1Password, LastPass & Bitwarden
-                  </p>
+                  <h4 className="text-xs font-semibold text-white">Import / Export</h4>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">CSV from any manager</p>
                 </div>
-                <FileText className="w-6 h-6 text-zinc-600" />
+                <FileText className="w-5 h-5 text-zinc-600" />
               </div>
               <div className="flex gap-2">
                 <label className="flex-1">
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleImport}
-                    className="hidden"
-                  />
-                  <div className="w-full py-3 bg-zinc-800 text-white text-sm font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-2 cursor-pointer border border-zinc-700 hover:border-zinc-600">
-                    <Upload className="w-4 h-4" />
+                  <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+                  <div className="w-full py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-zinc-700 hover:border-zinc-600">
+                    <Upload className="w-3.5 h-3.5" />
                     Import
                   </div>
                 </label>
                 <button
                   onClick={handleExport}
-                  className="flex-1 py-3 bg-zinc-800 text-white text-sm font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-600"
+                  className="flex-1 py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-1.5 border border-zinc-700 hover:border-zinc-600"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-3.5 h-3.5" />
                   Export
                 </button>
               </div>
             </div>
 
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5 space-y-4">
+            {/* Backup */}
+            <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-sm font-semibold text-white">
-                    Encrypted Backup
-                  </h4>
-                  <p className="text-xs text-zinc-500 mt-1">
-                    Safe backup of your entire vault
-                  </p>
+                  <h4 className="text-xs font-semibold text-white">Encrypted Backup</h4>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Safe vault backup</p>
                 </div>
-                <Shield className="w-6 h-6 text-zinc-600" />
+                <Shield className="w-5 h-5 text-zinc-600" />
               </div>
               <div className="flex gap-2">
                 <label className="flex-1">
-                  <input
-                    type="file"
-                    accept=".pv"
-                    onChange={handleRestore}
-                    className="hidden"
-                  />
-                  <div className="w-full py-3 bg-zinc-800 text-white text-sm font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-2 cursor-pointer border border-zinc-700 hover:border-zinc-600">
-                    <Upload className="w-4 h-4" />
+                  <input type="file" accept=".pv" onChange={handleRestore} className="hidden" />
+                  <div className="w-full py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-zinc-700 hover:border-zinc-600">
+                    <Upload className="w-3.5 h-3.5" />
                     Restore
                   </div>
                 </label>
                 <button
                   onClick={handleBackup}
-                  className="flex-1 py-3 bg-zinc-800 text-white text-sm font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-600"
+                  className="flex-1 py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-1.5 border border-zinc-700 hover:border-zinc-600"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-3.5 h-3.5" />
                   Backup
                 </button>
               </div>
@@ -318,12 +294,13 @@ export default function Settings({
           </div>
         </div>
 
-        <div className="pt-4">
+        {/* Danger Zone */}
+        <div className="pt-2">
           <button
             onClick={() => setShowConfirmWipe(true)}
-            className="w-full py-4 border border-red-500/20 text-red-500 text-sm font-semibold rounded-2xl hover:bg-red-500/10 transition-all flex items-center justify-center gap-2"
+            className="w-full py-3 border border-red-500/20 text-red-500 text-xs font-semibold rounded-xl hover:bg-red-500/10 transition-all flex items-center justify-center gap-2"
           >
-            <Trash2 className="w-5 h-5" />
+            <Trash2 className="w-4 h-4" />
             Wipe Vault Storage
           </button>
         </div>
@@ -331,7 +308,7 @@ export default function Settings({
 
       <AnimatePresence>
         {showConfirmWipe && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -343,40 +320,31 @@ export default function Settings({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-5 shadow-2xl"
+              className="relative w-full max-w-xs bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4 shadow-2xl"
             >
-              <div className="flex flex-col items-center text-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
-                  <AlertTriangle className="w-8 h-8 text-red-500" />
+              <div className="flex flex-col items-center text-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-red-500" />
                 </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-semibold text-white">
-                    Wipe Vault?
-                  </h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed">
-                    This will permanently delete all your passwords, cards, and
-                    notes. This action{" "}
-                    <span className="text-red-400 font-semibold">
-                      cannot be undone
-                    </span>
-                    .
+                <div className="space-y-1.5">
+                  <h3 className="text-base font-semibold text-white">Wipe Vault?</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    This will permanently delete all passwords, cards, and notes.
+                    This action <span className="text-red-400 font-semibold">cannot be undone</span>.
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 pt-2">
+              <div className="flex flex-col gap-2 pt-1">
                 <button
-                  onClick={() => {
-                    onClear();
-                    setShowConfirmWipe(false);
-                  }}
-                  className="w-full py-3.5 bg-red-500 text-white text-sm font-semibold rounded-xl hover:bg-red-600 transition-colors"
+                  onClick={() => { onClear(); setShowConfirmWipe(false); }}
+                  className="w-full py-3 bg-red-500 text-white text-xs font-semibold rounded-xl hover:bg-red-600 transition-colors"
                 >
                   Yes, Wipe Everything
                 </button>
                 <button
                   onClick={() => setShowConfirmWipe(false)}
-                  className="w-full py-3.5 bg-zinc-800 text-white text-sm font-semibold rounded-xl hover:bg-zinc-700 transition-colors border border-zinc-700 hover:border-zinc-600"
+                  className="w-full py-3 bg-zinc-800 text-white text-xs font-semibold rounded-xl hover:bg-zinc-700 transition-colors border border-zinc-700"
                 >
                   Cancel
                 </button>
