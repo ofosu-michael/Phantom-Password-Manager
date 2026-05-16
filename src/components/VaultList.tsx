@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
@@ -113,11 +113,52 @@ export default function VaultList({
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<number | null>(null);
+
+  const startAutoScroll = (e: React.DragEvent) => {
+    if (!listRef.current) return;
+    const rect = listRef.current.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const threshold = rect.height * 0.15;
+    const speed = 8;
+
+    if (scrollRef.current) cancelAnimationFrame(scrollRef.current);
+
+    const scroll = () => {
+      if (!listRef.current) return;
+      const r = listRef.current.getBoundingClientRect();
+      const cy = e.clientY - r.top;
+
+      if (cy < threshold) {
+        listRef.current.scrollTop -= speed * (1 - cy / threshold);
+        scrollRef.current = requestAnimationFrame(scroll);
+      } else if (cy > r.height - threshold) {
+        listRef.current.scrollTop += speed * (1 - (r.height - cy) / threshold);
+        scrollRef.current = requestAnimationFrame(scroll);
+      }
+    };
+
+    scrollRef.current = requestAnimationFrame(scroll);
+  };
+
+  const stopAutoScroll = () => {
+    if (scrollRef.current) {
+      cancelAnimationFrame(scrollRef.current);
+      scrollRef.current = null;
+    }
+  };
 
   // Timer for TOTP
   const [timeRemaining, setTimeRemaining] = useState(
     30 - (Math.floor(Date.now() / 1000) % 30),
   );
+
+  useEffect(() => {
+    return () => {
+      if (scrollRef.current) cancelAnimationFrame(scrollRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -386,17 +427,21 @@ export default function VaultList({
 
       {/* List */}
       <div
+        ref={listRef}
         className="flex-1 overflow-y-auto px-3 pb-16 space-y-1.5 no-scrollbar"
         onDragOver={(e) => {
           if (draggedItemId) {
             e.preventDefault();
+            startAutoScroll(e);
             setDragOverFolderId("__root__");
           }
         }}
         onDragLeave={(e) => {
+          stopAutoScroll();
           setDragOverFolderId(null);
         }}
         onDrop={(e) => {
+          stopAutoScroll();
           e.preventDefault();
           setDragOverFolderId(null);
           if (dragOverFolderId === "__root__" && draggedItemId && onMoveToFolder) {
@@ -779,6 +824,7 @@ export default function VaultList({
                     setDraggedItemId(item.id);
                   }}
                   onDragEnd={() => {
+                    stopAutoScroll();
                     setDraggedItemId(null);
                     setDragOverFolderId(null);
                   }}
