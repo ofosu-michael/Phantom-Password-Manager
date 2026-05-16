@@ -735,24 +735,24 @@ export default function App() {
                 onSettings={() => setView("settings")}
               />
               {/* Overriding Footer interaction to support view toggles */}
-              <div className="absolute bottom-0 left-0 w-full h-[68px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[10px] uppercase font-semibold">
+              <div className="absolute bottom-0 left-0 w-full h-[56px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[9px] uppercase font-semibold">
                 <button
                   onClick={() => setView("home")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "home" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1 ${(view as string) === "home" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Shield className="w-5 h-5" />
                   <span>Vault</span>
                 </button>
                 <button
                   onClick={() => setView("dashboard")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1 ${(view as string) === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <LayoutDashboard className="w-5 h-5" />
                   <span>Audit</span>
                 </button>
                 <button
                   onClick={() => setView("settings")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "settings" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1 ${(view as string) === "settings" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Settings className="w-5 h-5" />
                   <span>Sync</span>
@@ -804,24 +804,24 @@ export default function App() {
                   setView("edit");
                 }}
               />
-              <div className="absolute bottom-0 left-0 w-full h-[68px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[10px] uppercase font-semibold">
+              <div className="absolute bottom-0 left-0 w-full h-[56px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[9px] uppercase font-semibold">
                 <button
                   onClick={() => setView("home")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "home" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1 ${(view as string) === "home" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Shield className="w-5 h-5" />
                   <span>Vault</span>
                 </button>
                 <button
                   onClick={() => setView("dashboard")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1 ${(view as string) === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <LayoutDashboard className="w-5 h-5" />
                   <span>Audit</span>
                 </button>
                 <button
                   onClick={() => setView("settings")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "settings" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1 ${(view as string) === "settings" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Settings className="w-5 h-5" />
                   <span>Sync</span>
@@ -889,24 +889,24 @@ export default function App() {
                   }, 100);
                 }}
               />
-              <div className="absolute bottom-0 left-0 w-full h-[68px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[10px] uppercase font-semibold">
+              <div className="absolute bottom-0 left-0 w-full h-[56px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[9px] uppercase font-semibold">
                 <button
                   onClick={() => setView("home")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "home" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1 ${(view as string) === "home" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Shield className="w-5 h-5" />
                   <span>Vault</span>
                 </button>
                 <button
                   onClick={() => setView("dashboard")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1 ${(view as string) === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <LayoutDashboard className="w-5 h-5" />
                   <span>Audit</span>
                 </button>
                 <button
                   onClick={() => setView("settings")}
-                  className={`transition-colors flex flex-col items-center justify-center gap-1.5 ${(view as string) === "settings" ? "text-white" : "hover:text-zinc-300"}`}
+                  className={`transition-colors flex flex-col items-center justify-center gap-1 ${(view as string) === "settings" ? "text-white" : "hover:text-zinc-300"}`}
                 >
                   <Settings className="w-5 h-5" />
                   <span>Sync</span>

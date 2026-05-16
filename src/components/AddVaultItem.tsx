@@ -221,22 +221,22 @@ export default function AddVaultItem({
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
       className="absolute inset-0 bg-black flex flex-col z-10"
     >
-      <header className="px-4 pt-8 pb-4 flex items-center justify-between border-b border-zinc-900 bg-black">
+      <header className="px-3 pt-4 pb-3 flex items-center justify-between border-b border-zinc-900 bg-black">
         <button
           onClick={onCancel}
-          className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-500 hover:text-white transition-colors"
+          className="p-1.5 -ml-1.5 hover:bg-zinc-900 rounded-lg text-zinc-500 hover:text-white transition-colors"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-4 h-4" />
         </button>
-        <h2 className="font-semibold text-white tracking-tight">
+        <h2 className="font-semibold text-white tracking-tight text-sm">
           {item ? "Edit Item" : "New Item"}
         </h2>
-        <div className="w-10" />
+        <div className="w-8" />
       </header>
 
       <form
         onSubmit={handleSubmit}
-        className="flex-1 overflow-y-auto px-4 py-6 space-y-5 no-scrollbar pb-24"
+        className="flex-1 overflow-y-auto px-3 py-4 space-y-4 no-scrollbar pb-20"
       >
         {/* Category Picker */}
         <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl">

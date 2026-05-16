@@ -46,7 +46,7 @@ export default function Dashboard({ items, audit, masterPassword, onBack, onEdit
   };
 
   return (
-    <div className="flex flex-col h-full flex-1 w-full bg-black no-scrollbar overflow-y-auto px-4 pt-6 pb-24">
+    <div className="flex flex-col h-full flex-1 w-full bg-black no-scrollbar overflow-y-auto px-3 pt-4 pb-20">
       <header className="flex items-center gap-4 mb-6">
         <button 
           onClick={onBack}

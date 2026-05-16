@@ -186,7 +186,7 @@ export default function Settings({
   };
 
   return (
-    <div className="px-4 flex flex-col h-full flex-1 w-full bg-black custom-scrollbar overflow-y-auto pt-6 pb-24">
+    <div className="px-3 flex flex-col h-full flex-1 w-full bg-black custom-scrollbar overflow-y-auto pt-4 pb-20">
       <div className="flex items-center gap-4 mb-6">
         <button
           onClick={onBack}
