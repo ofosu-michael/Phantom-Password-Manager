@@ -29,9 +29,7 @@ interface VaultListProps {
   folders?: VaultFolder[];
   audit: {
     score: number;
-    weak: number;
     reused: number;
-    old: number;
     breached: number;
     breachedIds: string[];
   };
@@ -416,7 +414,7 @@ export default function VaultList({
                   Security Score
                 </p>
                 <div className="text-[10px] text-zinc-500">
-                  {audit.score}% • {audit.weak + audit.reused + audit.old} issues
+                  {audit.score}% • {audit.breached + audit.reused} issues
                 </div>
               </div>
             </div>
