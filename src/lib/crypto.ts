@@ -1,4 +1,4 @@
-const PBKDF2_ITERATIONS = 100000;
+const PBKDF2_ITERATIONS = 600000;
 const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
 const KEY_LENGTH = 256;
@@ -99,11 +99,63 @@ export async function decryptLegacy(ciphertext: string, secret: string): Promise
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  const hashBuffer = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(password)
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
   );
-  return buf2hex(hashBuffer);
+
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: PBKDF2_ITERATIONS,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    256
+  );
+
+  const result = {
+    s: buf2hex(salt),
+    h: buf2hex(derivedBits),
+  };
+
+  return JSON.stringify(result);
+}
+
+export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  try {
+    const parsed = JSON.parse(storedHash);
+    if (!parsed.s || !parsed.h) return false;
+
+    const salt = hex2buf(parsed.s);
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(password),
+      "PBKDF2",
+      false,
+      ["deriveBits"]
+    );
+
+    const derivedBits = await crypto.subtle.deriveBits(
+      {
+        name: "PBKDF2",
+        salt: new Uint8Array(salt),
+        iterations: PBKDF2_ITERATIONS,
+        hash: "SHA-256",
+      },
+      keyMaterial,
+      256
+    );
+
+    return buf2hex(derivedBits) === parsed.h;
+  } catch {
+    return false;
+  }
 }
 
 export function generateRandomPassword(

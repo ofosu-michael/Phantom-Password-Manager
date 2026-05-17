@@ -18,13 +18,14 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import {
-  hashPassword,
   encrypt,
   decrypt,
   decryptLegacy,
+  hashPassword,
+  verifyPassword,
+  generateSecureId,
   generateRandomPassword,
   calculateTimeToCrack,
-  generateSecureId,
   needsMigration,
   migrateVault,
 } from "./lib/crypto";
@@ -43,6 +44,8 @@ import BottomNav from "./components/BottomNav";
 const STORAGE_KEY = "phantom_vault_data";
 const MASTER_HASH_KEY = "phantom_vault_master";
 const SESSION_KEY = "phantom_session_token";
+const LOCKOUT_UNTIL_KEY = "phantom_lockout_until";
+const FAILED_ATTEMPTS_KEY = "phantom_failed_attempts";
 
 export default function App() {
   const [view, setView] = useState<View>("unlock");
@@ -59,8 +62,20 @@ export default function App() {
     return isNaN(parsed) ? 5 * 60 * 1000 : parsed;
   });
   const [breachedIds, setBreachedIds] = useState<string[]>([]);
-  const [failedAttempts, setFailedAttempts] = useState(0);
-  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(() => {
+    const saved = localStorage.getItem(FAILED_ATTEMPTS_KEY);
+    return saved ? parseInt(saved, 10) : 0;
+  });
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(() => {
+    const saved = localStorage.getItem(LOCKOUT_UNTIL_KEY);
+    const parsed = saved ? parseInt(saved, 10) : null;
+    if (parsed && parsed < Date.now()) {
+      localStorage.removeItem(LOCKOUT_UNTIL_KEY);
+      localStorage.removeItem(FAILED_ATTEMPTS_KEY);
+      return null;
+    }
+    return parsed;
+  });
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem("phantom_vault_theme");
     return saved || "apple-blue";
@@ -364,6 +379,8 @@ export default function App() {
 
   const clearSession = useCallback(() => {
     setMasterPassword("");
+    setDecryptedPasswords({});
+    setDecryptedEditingPassword("");
     sessionTokenRef.current = null;
     lastActivityRef.current = Date.now();
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
@@ -561,10 +578,10 @@ export default function App() {
     if (lockoutUntil && Date.now() < lockoutUntil) {
       return false;
     }
-    const hashed = await hashPassword(password);
     const storedHash = localStorage.getItem(MASTER_HASH_KEY);
 
     if (!storedHash) {
+      const hashed = await hashPassword(password);
       localStorage.setItem(MASTER_HASH_KEY, hashed);
       setMasterPassword(password);
       const token = generateSecureId();
@@ -589,7 +606,7 @@ export default function App() {
       return true;
     }
 
-    if (hashed === storedHash) {
+    if (await verifyPassword(password, storedHash)) {
       setMasterPassword(password);
       const token = generateSecureId();
       sessionTokenRef.current = token;
@@ -599,14 +616,20 @@ export default function App() {
       }
       setFailedAttempts(0);
       setLockoutUntil(null);
+      localStorage.removeItem(FAILED_ATTEMPTS_KEY);
+      localStorage.removeItem(LOCKOUT_UNTIL_KEY);
       setView("home");
       return true;
     } else {
       const newAttempts = failedAttempts + 1;
       setFailedAttempts(newAttempts);
+      localStorage.setItem(FAILED_ATTEMPTS_KEY, newAttempts.toString());
       if (newAttempts >= 5) {
-        setLockoutUntil(Date.now() + 5 * 60 * 1000);
+        const lockoutTime = Date.now() + 5 * 60 * 1000;
+        setLockoutUntil(lockoutTime);
         setFailedAttempts(0);
+        localStorage.setItem(LOCKOUT_UNTIL_KEY, lockoutTime.toString());
+        localStorage.removeItem(FAILED_ATTEMPTS_KEY);
       }
       return false;
     }
@@ -1016,9 +1039,8 @@ export default function App() {
                 }, 100);
                 }}
               onChangePassword={async (oldPassword, newPassword) => {
-                const oldHash = await hashPassword(oldPassword);
                 const storedHash = localStorage.getItem(MASTER_HASH_KEY);
-                if (oldHash !== storedHash) return false;
+                if (!storedHash || !(await verifyPassword(oldPassword, storedHash))) return false;
 
                 const newHash = await hashPassword(newPassword);
                 localStorage.setItem(MASTER_HASH_KEY, newHash);

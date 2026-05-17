@@ -172,6 +172,9 @@ export default function AddVaultItem({
     if (text) {
       navigator.clipboard.writeText(text);
       onShowToast(`${label} copied`, "success");
+      setTimeout(() => {
+        navigator.clipboard.writeText("");
+      }, 30000);
     }
   };
 

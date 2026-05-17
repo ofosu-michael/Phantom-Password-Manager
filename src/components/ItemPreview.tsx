@@ -22,6 +22,7 @@ import {
   Star,
 } from "lucide-react";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { VaultItem, VaultFolder } from "../types";
 import { decrypt } from "../lib/crypto";
 
@@ -165,6 +166,9 @@ export default function ItemPreview({
       setCopiedField(label);
       onShowToast(`${label} copied`, "success");
       setTimeout(() => setCopiedField(null), 2000);
+      setTimeout(() => {
+        navigator.clipboard.writeText("");
+      }, 30000);
     }
   };
 
@@ -363,7 +367,7 @@ export default function ItemPreview({
             <div
               className="text-sm text-zinc-300 leading-relaxed prose prose-invert prose-sm max-w-none prose-headings:text-white prose-a:text-accent prose-strong:text-white"
               dangerouslySetInnerHTML={{
-                __html: marked.parse(item.content || "—") as string,
+                __html: DOMPurify.sanitize(marked.parse(item.content || "—") as string),
               }}
             />
           </div>
@@ -505,6 +509,9 @@ export default function ItemPreview({
                             onClick={() => {
                               navigator.clipboard.writeText(entry.password);
                               onShowToast("Password copied", "success");
+                              setTimeout(() => {
+                                navigator.clipboard.writeText("");
+                              }, 30000);
                             }}
                             className="p-2 text-zinc-500 hover:text-white transition-colors"
                           >
