@@ -104,7 +104,7 @@ Contributions are welcome! Whether it's a bug fix, feature addition, or document
 
 **Michael Ofosu** — Developer & designer.
 
-- Website: [michaelofosu.vercel.app](https://michaelofosu.vercel.app)
+- Website: [about me (: ](https://michaelofosu.vercel.app)
 
 ## License
 
