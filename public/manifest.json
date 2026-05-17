@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Phantom Vault",
+  "name": "Phantom Password Manager",
   "version": "1.0",
   "description": "Locally encrypted and secure password manager. Client-side encryption for total privacy.",
   "action": {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import {
   ArrowLeft,
   Save,
@@ -13,16 +13,10 @@ import {
   Sparkles,
   CreditCard,
   FileText,
-  LayoutGrid,
-  Clock,
-  Tag,
-  X,
-  Star,
-  ShieldAlert,
-  Plus,
   Copy,
+  Plus,
+  X,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { VaultItem, VaultFolder } from "../types";
 import { generateRandomPassword, decrypt, encrypt } from "../lib/crypto";
 
@@ -56,54 +50,27 @@ export default function AddVaultItem({
   const [isFavorite, setIsFavorite] = useState<boolean>(
     item?.isFavorite || false,
   );
-  const [customIcon, setCustomIcon] = useState(item?.customIcon || "");
-  const [customIconColor, setCustomIconColor] = useState(
-    item?.customIconColor || "",
-  );
-  const [showHistory, setShowHistory] = useState(false);
   const [title, setTitle] = useState(item?.title || "");
   const [website, setWebsite] = useState(item?.website || "");
   const [username, setUsername] = useState(item?.username || "");
   const [password, setPassword] = useState(decryptedPassword);
-
   const [totpSecret, setTotpSecret] = useState("");
   const [content, setContent] = useState(item?.content || "");
   const [cardDetails, setCardDetails] = useState(
     item?.cardDetails || { number: "", expiry: "", cvv: "" },
   );
-  
   const [identityDetails, setIdentityDetails] = useState(
     item?.identityDetails || { firstName: "", lastName: "", idNumber: "", dob: "", address: "" },
   );
-
   const [customFields, setCustomFields] = useState<
-    {
-      id: string;
-      name: string;
-      value: string;
-      isSecret: boolean;
-      _show?: boolean;
-    }[]
-  >(() => {
-    return (item?.customFields || []).map((cf) => ({
-      ...cf,
-      value: cf.value,
-    }));
-  });
-
+    { id: string; name: string; value: string; isSecret: boolean; _show?: boolean }[]
+  >(() => (item?.customFields || []).map((cf) => ({ ...cf, value: cf.value })));
   const [tags, setTags] = useState<string[]>(item?.tags || []);
   const [tagInput, setTagInput] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
-  const [showGenSettings, setShowGenSettings] = useState(false);
-  const [genOptions, setGenOptions] = useState({ length: 16, numbers: true, symbols: true, uppercase: true });
-  const [isPreview, setIsPreview] = useState(false);
-  const [decryptedHistory, setDecryptedHistory] = useState<Record<number, string>>({});
 
   useEffect(() => {
-    if (decryptedPassword) {
-      setPassword(decryptedPassword);
-    }
+    if (decryptedPassword) setPassword(decryptedPassword);
   }, [decryptedPassword]);
 
   useEffect(() => {
@@ -129,53 +96,28 @@ export default function AddVaultItem({
     }
   }, [item?.customFields, masterPassword]);
 
-  useEffect(() => {
-    if (item?.passwordHistory && masterPassword) {
-      item.passwordHistory.forEach(async (h, i) => {
-        const val = await decrypt(h.password, masterPassword);
-        if (val) {
-          setDecryptedHistory((prev) => ({ ...prev, [i]: val }));
-        }
-      });
-    }
-  }, [item?.passwordHistory, masterPassword]);
-
-  const getPasswordStrength = (pass: string) => {
-    if (!pass) return { score: 0, label: "None", color: "bg-zinc-800" };
-    let score = 0;
-    if (pass.length > 8) score++;
-    if (pass.length > 12) score++;
-    if (/[A-Z]/.test(pass)) score++;
-    if (/[0-9]/.test(pass)) score++;
-    if (/[^A-Za-z0-9]/.test(pass)) score++;
-
-    if (score <= 2) return { score, label: "Weak", color: "bg-red-500" };
-    if (score <= 4) return { score, label: "Strong", color: "bg-yellow-500" };
-    return { score, label: "Very Strong", color: "bg-green-500" };
-  };
-
-  const strength = getPasswordStrength(password);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title) return;
 
-    let encryptedTotpSecret = undefined;
-    if (category === "Login" && totpSecret.trim() && masterPassword) {
-      encryptedTotpSecret = await encrypt(totpSecret.trim(), masterPassword);
+    let history = item?.passwordHistory || [];
+
+    if (item?.id && category === "Login" && password) {
+      const oldPassRaw = await decrypt(item.encryptedPassword, masterPassword || "");
+      if (oldPassRaw && oldPassRaw !== password) {
+        const reencryptedOldPass = await encrypt(oldPassRaw, masterPassword || "");
+        history = [
+          { password: reencryptedOldPass, timestamp: item.updatedAt },
+          ...(item.passwordHistory || []),
+        ].slice(0, 5);
+      }
     }
 
-    if (category === "Login" && (window as any).PasswordCredential && !item) {
-      try {
-        const cred = new (window as any).PasswordCredential({
-          id: username || title,
-          password: password,
-          name: title,
-        });
-        await navigator.credentials.store(cred);
-      } catch (err) {
-        console.error("Failed to store credentials in browser:", err);
-      }
+    const encryptedPassword = await encrypt(password || "", masterPassword || "");
+
+    let encryptedTotpSecret = undefined;
+    if (totpSecret.trim()) {
+      encryptedTotpSecret = await encrypt(totpSecret.trim(), masterPassword || "");
     }
 
     const finalCustomFields = await Promise.all(
@@ -196,25 +138,21 @@ export default function AddVaultItem({
       title,
       website,
       username,
-      encryptedPassword: password || "",
+      encryptedPassword,
       encryptedTotpSecret,
       folderId: folderId || undefined,
       isFavorite,
-      customIcon: customIcon || undefined,
-      customIconColor: customIconColor || undefined,
       content,
       cardDetails,
       identityDetails,
-      customFields:
-        finalCustomFields.length > 0 ? finalCustomFields : undefined,
-      strength: strength.score,
+      customFields: finalCustomFields.length > 0 ? finalCustomFields : undefined,
       tags,
       updatedAt: Date.now(),
     });
   };
 
   const handleGenerate = () => {
-    const newPass = generateRandomPassword(genOptions.length, genOptions);
+    const newPass = generateRandomPassword(16, { numbers: true, symbols: true, uppercase: true });
     setPassword(newPass);
     setShowPassword(true);
   };
@@ -230,16 +168,50 @@ export default function AddVaultItem({
     setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
-  const timeAgo = (timestamp: number) => {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 60) return "Just now";
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+  const copyToClipboard = (text: string, label: string) => {
+    if (text) {
+      navigator.clipboard.writeText(text);
+      onShowToast(`${label} copied`, "success");
+    }
   };
+
+  const InputField = ({ icon, label, value, onChange, type = "text", placeholder, showCopy, showPasswordToggle, isMonospace }: {
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+    onChange: (val: string) => void;
+    type?: string;
+    placeholder?: string;
+    showCopy?: boolean;
+    showPasswordToggle?: boolean;
+    isMonospace?: boolean;
+  }) => (
+    <div className="flex items-center gap-3 py-3">
+      <div className="text-zinc-500 flex-shrink-0">{icon}</div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-zinc-500 font-medium">{label}</p>
+        <input
+          type={showPasswordToggle && showPassword ? "text" : type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={`w-full bg-transparent border-none py-0.5 outline-none text-white text-sm placeholder:text-zinc-600 ${isMonospace ? "font-mono" : ""}`}
+        />
+      </div>
+      <div className="flex items-center gap-0.5 flex-shrink-0">
+        {showCopy && value && (
+          <button type="button" onClick={() => copyToClipboard(value, label)} className="p-2 text-zinc-500 hover:text-white transition-colors">
+            <Copy className="w-4 h-4" />
+          </button>
+        )}
+        {showPasswordToggle && (
+          <button type="button" onClick={() => setShowPassword(!showPassword)} className="p-2 text-zinc-500 hover:text-white transition-colors">
+            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <motion.div
@@ -249,691 +221,342 @@ export default function AddVaultItem({
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
       className="absolute inset-0 bg-black flex flex-col z-10"
     >
-      <header className="px-3 pt-3 pb-2.5 flex items-center justify-between border-b border-zinc-900 bg-black">
+      {/* Header */}
+      <header className="px-4 pt-4 pb-3 flex items-center justify-between">
         <button
           onClick={onCancel}
-          className="p-1.5 -ml-1.5 hover:bg-zinc-900 rounded-lg text-zinc-500 hover:text-white transition-colors"
+          className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-5 h-5" />
         </button>
         <h2 className="font-semibold text-white tracking-tight text-sm">
           {item ? "Edit Item" : "New Item"}
         </h2>
-        <div className="w-8" />
+        <button
+          onClick={() => setIsFavorite(!isFavorite)}
+          className={`p-2 -mr-2 hover:bg-zinc-900 rounded-xl transition-colors ${isFavorite ? "text-yellow-500" : "text-zinc-600"}`}
+        >
+          <svg className={`w-5 h-5 ${isFavorite ? "fill-current" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+        </button>
       </header>
 
-      <form
-        onSubmit={handleSubmit}
-        className="flex-1 overflow-y-auto px-3 py-3 space-y-3 no-scrollbar pb-20"
-      >
+      <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 py-2 space-y-4 no-scrollbar pb-20">
         {/* Category Picker */}
-        <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-900/50 border border-zinc-800 rounded-xl">
+        <div className="grid grid-cols-4 gap-2 p-1 bg-zinc-900/50 rounded-xl">
           {(["Login", "Card", "Note", "Identity"] as const).map((cat) => (
             <button
               key={cat}
               type="button"
               onClick={() => setCategory(cat)}
-              className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
+              className={`flex flex-col items-center justify-center gap-1 py-2 rounded-lg text-[11px] font-medium transition-all ${
                 category === cat
-                  ? "bg-zinc-800 text-white shadow-sm border border-zinc-700"
+                  ? "bg-zinc-800 text-white"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              {cat === "Login" && <Key className="w-3.5 h-3.5" />}
-              {cat === "Card" && <CreditCard className="w-3.5 h-3.5" />}
-              {cat === "Note" && <FileText className="w-3.5 h-3.5" />}
-              {cat === "Identity" && <User className="w-3.5 h-3.5" />}
+              {cat === "Login" && <Key className="w-4 h-4" />}
+              {cat === "Card" && <CreditCard className="w-4 h-4" />}
+              {cat === "Note" && <FileText className="w-4 h-4" />}
+              {cat === "Identity" && <User className="w-4 h-4" />}
               {cat}
             </button>
           ))}
         </div>
 
-        <div className="space-y-3">
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-1 focus-within:border-zinc-700 transition-all">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-semibold text-zinc-500 block">
-                Title
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsFavorite(!isFavorite)}
-                className={`transition-colors ${isFavorite ? "text-yellow-500" : "text-zinc-600 hover:text-zinc-400"}`}
-              >
-                <Star
-                  className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : ""}`}
-                />
-              </button>
-            </div>
-            <div className="relative">
-              <LayoutGrid className="absolute left-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+        {/* Title + Folder */}
+        <div className="bg-zinc-900/30 rounded-2xl px-4 divide-y divide-zinc-800/50">
+          <div className="flex items-center justify-between py-3">
+            <div className="flex-1 min-w-0 mr-3">
+              <p className="text-[11px] text-zinc-500 font-medium">Title</p>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. GitHub, Amazon"
-                className="w-full bg-transparent border-none py-1.5 pl-6 pr-0 outline-none text-white text-sm font-medium placeholder:text-zinc-700"
+                className="w-full bg-transparent border-none py-0.5 outline-none text-white text-sm font-medium placeholder:text-zinc-600"
               />
             </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-1 focus-within:border-zinc-700 transition-all">
-              <label className="text-[10px] font-semibold text-zinc-500 block">
-                Folder
-              </label>
+            {folders.length > 0 && (
               <select
                 value={folderId}
                 onChange={(e) => setFolderId(e.target.value)}
-                className="w-full bg-transparent border-none py-1.5 text-white text-xs font-medium outline-none cursor-pointer appearance-none min-w-0"
+                className="text-xs bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-zinc-300 outline-none shrink-0"
               >
-                <option value="" className="text-zinc-900">
-                  None
-                </option>
+                <option value="">No folder</option>
                 {folders.map((f) => (
-                  <option key={f.id} value={f.id} className="text-zinc-900">
-                    {f.name}
-                  </option>
+                  <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>
-            </div>
-
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-1 focus-within:border-zinc-700 transition-all">
-              <label className="text-[10px] font-semibold text-zinc-500 block">
-                Custom Icon
-              </label>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="color"
-                  value={customIconColor || "#3b82f6"}
-                  onChange={(e) => setCustomIconColor(e.target.value)}
-                  className="w-5 h-5 rounded cursor-pointer border-none p-0 bg-transparent flex-shrink-0"
-                />
-                <input
-                  type="text"
-                  value={customIcon}
-                  onChange={(e) => setCustomIcon(e.target.value)}
-                  placeholder="Emoji, URL, etc."
-                  className="w-full min-w-0 bg-transparent border-none outline-none text-white text-xs font-medium placeholder:text-zinc-700"
-                />
-              </div>
-            </div>
-          </div>
-
-          {category === "Login" && (
-            <>
-              <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-1 focus-within:border-zinc-700 transition-all">
-                <label className="text-[10px] font-semibold text-zinc-500 block">
-                  Website URL
-                </label>
-                <div className="relative">
-                  <Globe className="absolute left-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
-                  <input
-                    type="text"
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
-                    placeholder="google.com"
-                    className="w-full bg-transparent border-none py-1.5 pl-6 pr-0 outline-none text-white text-sm font-medium placeholder:text-zinc-700"
-                  />
-                </div>
-              </div>
-
-              <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-1 focus-within:border-zinc-700 transition-all">
-                <label className="text-[10px] font-semibold text-zinc-500 block">
-                  Username / Email
-                </label>
-                <div className="relative">
-                  <User className="absolute left-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="name@example.com"
-                    className="w-full bg-transparent border-none py-1.5 pl-6 pr-8 outline-none text-white text-sm font-medium placeholder:text-zinc-700"
-                  />
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center pr-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(username);
-                        onShowToast("Username copied to clipboard", "success");
-                      }}
-                      className="p-1.5 text-zinc-500 hover:text-white transition-colors"
-                      title="Copy username"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-1 focus-within:border-zinc-700 transition-all group">
-                <label className="text-[10px] font-semibold text-zinc-500 block">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full bg-transparent border-none py-1.5 pl-6 pr-14 outline-none text-white text-sm font-mono placeholder:text-zinc-700 tracking-tight"
-                  />
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center pr-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(password);
-                        onShowToast("Password copied to clipboard", "success");
-                      }}
-                      className="p-1 text-zinc-500 hover:text-white transition-colors"
-                      title="Copy password"
-                    >
-                      <Copy className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="p-1 text-zinc-500 hover:text-white transition-colors"
-                      title={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-3 h-3" />
-                      ) : (
-                        <Eye className="w-3 h-3" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <div className="pt-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowGenSettings(!showGenSettings)}
-                    className="flex items-center gap-1.5 text-[10px] font-medium text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2 py-1 rounded-md transition-colors"
-                  >
-                    <Sparkles className="w-3 h-3 text-zinc-400" />
-                    Auto-Generate
-                  </button>
-                </div>
-                {showGenSettings && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }} 
-                    animate={{ opacity: 1, height: 'auto' }} 
-                    className="pt-1.5 overflow-hidden"
-                  >
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-2.5 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-medium text-zinc-400">Length: {genOptions.length}</label>
-                        <input 
-                          type="range" min="8" max="64" 
-                          value={genOptions.length}
-                          onChange={e => setGenOptions({...genOptions, length: parseInt(e.target.value)})}
-                          className="w-2/3 accent-[var(--accent)]"
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-2 text-[10px] font-medium text-zinc-400">
-                        <label className="flex items-center gap-1 cursor-pointer">
-                          <input type="checkbox" checked={genOptions.numbers} onChange={e => setGenOptions({...genOptions, numbers: e.target.checked})} className="accent-[var(--accent)] rounded" />
-                          Numbers
-                        </label>
-                        <label className="flex items-center gap-1 cursor-pointer">
-                          <input type="checkbox" checked={genOptions.symbols} onChange={e => setGenOptions({...genOptions, symbols: e.target.checked})} className="accent-[var(--accent)] rounded" />
-                          Symbols
-                        </label>
-                        <label className="flex items-center gap-1 cursor-pointer">
-                          <input type="checkbox" checked={genOptions.uppercase} onChange={e => setGenOptions({...genOptions, uppercase: e.target.checked})} className="accent-[var(--accent)] rounded" />
-                          Uppercase
-                        </label>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleGenerate}
-                        className="w-full bg-accent hover:bg-accent-hover text-white text-[10px] font-bold py-1.5 rounded-md transition-colors"
-                      >
-                        Generate & Apply
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </div>
-
-              <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-1 focus-within:border-zinc-700 transition-all">
-                <label className="text-[10px] font-semibold text-zinc-500 block">
-                  TOTP Setup Key (2FA)
-                </label>
-                <div className="relative">
-                  <ShieldAlert className="absolute left-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
-                  <input
-                    type="text"
-                    value={totpSecret}
-                    onChange={(e) => setTotpSecret(e.target.value)}
-                    placeholder="JBSWY3DPEHPK3PXP"
-                    className="w-full bg-transparent border-none py-1.5 pl-6 pr-8 outline-none text-white text-xs font-mono placeholder:text-zinc-700 tracking-wider"
-                  />
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center pr-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(totpSecret);
-                        onShowToast("TOTP secret copied to clipboard", "success");
-                      }}
-                      className="p-1 text-zinc-500 hover:text-white transition-colors"
-                      title="Copy TOTP secret"
-                    >
-                      <Copy className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-                <p className="text-[9px] text-zinc-500 pt-0.5">
-                  Paste the base32 secret key to use as authenticator.
-                </p>
-              </div>
-            </>
-          )}
-
-          {category === "Card" && (
-            <div className="space-y-3">
-              {/* Realistic Card Visual */}
-              <div className={`relative w-full aspect-[1.586/1] rounded-xl p-4 flex flex-col justify-between overflow-hidden shadow-lg bg-gradient-to-br ${
-                (() => {
-                  const n = cardDetails.number.replace(/\D/g, "");
-                  if (n.startsWith("4")) return "from-[#1A1F71] to-[#0A0D3B] text-white";
-                  if (/^5[1-5]/.test(n)) return "from-[#EB001B] to-[#F79E1B] text-white";
-                  if (/^3[47]/.test(n)) return "from-[#2A8297] to-[#1D5E6D] text-white";
-                  if (/^6(?:011|5)/.test(n)) return "from-[#E65C00] to-[#F9A021] text-white";
-                  return "from-zinc-800 to-zinc-950 text-white";
-                })()
-              }`}>
-                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white via-white/50 to-transparent" />
-                
-                <div className="flex justify-between items-start relative z-10 opacity-80">
-                  <div className="w-10 h-6 rounded-md bg-gradient-to-br from-yellow-200 to-yellow-500/80 shadow-sm opacity-90 border border-yellow-100/20" />
-                  <div className="font-bold text-sm italic tracking-wider opacity-90 truncate max-w-[80px]">
-                    {(() => {
-                      const n = cardDetails.number.replace(/\D/g, "");
-                      if (n.startsWith("4")) return "VISA";
-                      if (/^5[1-5]/.test(n)) return "MasterCard";
-                      if (/^3[47]/.test(n)) return "AMEX";
-                      if (/^6(?:011|5)/.test(n)) return "DISCOVER";
-                      return "";
-                    })()}
-                  </div>
-                </div>
-
-                <div className="relative z-10 space-y-3">
-                  <div className="font-mono text-base tracking-wider textShadow flex justify-between gap-1 break-all">
-                    {cardDetails.number || "•••• •••• •••• ••••"}
-                  </div>
-                  <div className="flex justify-between items-end">
-                    <div className="space-y-0.5 max-w-[60%]">
-                      <div className="text-[8px] uppercase tracking-widest opacity-60">Cardholder</div>
-                      <div className="font-semibold tracking-wider text-xs truncate uppercase">
-                        {title || "YOUR NAME"}
-                      </div>
-                    </div>
-                    <div className="space-y-0.5">
-                      <div className="text-[8px] uppercase tracking-widest opacity-60 text-right">Expires</div>
-                      <div className="font-mono text-xs tracking-wider text-right">
-                        {cardDetails.expiry || "MM/YY"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-zinc-500 block">
-                    Card Number
-                  </label>
-                  <input
-                    type="text"
-                    value={cardDetails.number}
-                    onChange={(e) =>
-                      setCardDetails({ ...cardDetails, number: e.target.value })
-                    }
-                    placeholder="0000 0000 0000 0000"
-                    className="w-full bg-transparent border-none py-1 outline-none text-white text-sm font-mono placeholder:text-zinc-700"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-zinc-500 block">
-                      Expiry
-                    </label>
-                    <input
-                      type="text"
-                      value={cardDetails.expiry}
-                      onChange={(e) =>
-                        setCardDetails({ ...cardDetails, expiry: e.target.value })
-                      }
-                      placeholder="MM/YY"
-                      className="w-full bg-transparent border-none py-1 outline-none text-white text-sm font-mono placeholder:text-zinc-700"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-zinc-500 block">
-                      CVV
-                    </label>
-                    <input
-                      type="text"
-                      value={cardDetails.cvv}
-                      onChange={(e) =>
-                        setCardDetails({ ...cardDetails, cvv: e.target.value })
-                      }
-                      placeholder="123"
-                      className="w-full bg-transparent border-none py-1 outline-none text-white text-sm font-mono placeholder:text-zinc-700"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {category === "Identity" && (
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-zinc-500 block">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    value={identityDetails.firstName}
-                    onChange={(e) => setIdentityDetails({ ...identityDetails, firstName: e.target.value })}
-                    className="w-full bg-transparent border-none py-1 outline-none text-white text-sm placeholder:text-zinc-700"
-                    placeholder="John"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-zinc-500 block">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    value={identityDetails.lastName}
-                    onChange={(e) => setIdentityDetails({ ...identityDetails, lastName: e.target.value })}
-                    className="w-full bg-transparent border-none py-1 outline-none text-white text-sm placeholder:text-zinc-700"
-                    placeholder="Doe"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-zinc-500 block">
-                  SSN / ID Number
-                </label>
-                <input
-                  type="text"
-                  value={identityDetails.idNumber}
-                  onChange={(e) => setIdentityDetails({ ...identityDetails, idNumber: e.target.value })}
-                  className="w-full bg-transparent border-none py-1 outline-none text-white text-sm font-mono placeholder:text-zinc-700"
-                  placeholder="000-00-0000"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-zinc-500 block">
-                  Date of Birth
-                </label>
-                <input
-                  type="date"
-                  value={identityDetails.dob}
-                  onChange={(e) => setIdentityDetails({ ...identityDetails, dob: e.target.value })}
-                  className="w-full bg-transparent border-none py-1 outline-none text-white text-sm placeholder:text-zinc-700 [color-scheme:dark]"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-zinc-500 block">
-                  Address
-                </label>
-                <textarea
-                  value={identityDetails.address}
-                  onChange={(e) => setIdentityDetails({ ...identityDetails, address: e.target.value })}
-                  className="w-full bg-transparent border-none py-1 outline-none text-white text-sm resize-none h-16 placeholder:text-zinc-700"
-                  placeholder="123 Main St..."
-                />
-              </div>
-            </div>
-          )}
-
-          {category === "Note" && (
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-2 min-h-[160px] flex flex-col">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-semibold text-zinc-500 block">
-                  Content (Markdown)
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsPreview(!isPreview)}
-                  className="text-[10px] font-medium text-white px-1.5 py-0.5 bg-zinc-800 rounded-md"
-                >
-                  {isPreview ? "Edit" : "Preview"}
-                </button>
-              </div>
-              {isPreview ? (
-                <div className="flex-1 text-xs text-zinc-300 prose prose-invert max-w-none prose-xs leading-relaxed">
-                  <ReactMarkdown>{content || "*No content*"}</ReactMarkdown>
-                </div>
-              ) : (
-                <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Write your secure notes here..."
-                  className="flex-1 bg-transparent border-none py-1 outline-none text-white text-sm font-sans resize-none min-h-[120px] placeholder:text-zinc-700"
-                />
-              )}
-            </div>
-          )}
-
-          {/* Custom Fields */}
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-semibold text-zinc-500 block">
-                Custom Fields
-              </label>
-              <button
-                type="button"
-                onClick={() =>
-                  setCustomFields([
-                    ...customFields,
-                    {
-                      id: crypto.randomUUID(),
-                      name: "",
-                      value: "",
-                      isSecret: false,
-                    },
-                  ])
-                }
-                className="text-[10px] flex items-center gap-1 font-medium text-accent hover:text-accent-hover transition-colors"
-              >
-                <Plus className="w-3 h-3" />
-                Add Field
-              </button>
-            </div>
-            {customFields.length > 0 ? (
-              <div className="space-y-2">
-                {customFields.map((field, idx) => (
-                  <div
-                    key={field.id}
-                    className="flex gap-1.5 items-start relative group"
-                  >
-                    <div className="flex-1 space-y-1.5">
-                      <input
-                        type="text"
-                        value={field.name}
-                        onChange={(e) => {
-                          const newFields = [...customFields];
-                          newFields[idx].name = e.target.value;
-                          setCustomFields(newFields);
-                        }}
-                        placeholder="Field Name"
-                        className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-1 px-2.5 outline-none text-white text-xs placeholder:text-zinc-700 focus:border-zinc-700 transition-colors"
-                      />
-                      <div className="relative">
-                        <input
-                          type={
-                            field.isSecret && !field["_show"]
-                              ? "password"
-                              : "text"
-                          }
-                          value={field.value}
-                          onChange={(e) => {
-                            const newFields = [...customFields];
-                            newFields[idx].value = e.target.value;
-                            setCustomFields(newFields);
-                          }}
-                          placeholder="Value"
-                          className={`w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-1 px-2.5 outline-none text-white text-xs font-mono placeholder:text-zinc-700 focus:border-zinc-700 transition-colors ${field.isSecret ? "pr-12" : "pr-7"}`}
-                        />
-                        <div className="absolute right-0.5 top-1/2 -translate-y-1/2 flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(field.value);
-                              onShowToast("Field copied to clipboard", "success");
-                            }}
-                            className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
-                            title="Copy field"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                          {field.isSecret && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newFields = [...customFields];
-                                newFields[idx]["_show"] =
-                                  !newFields[idx]["_show"];
-                                setCustomFields(newFields);
-                              }}
-                              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
-                            >
-                              {field["_show"] ? (
-                                <EyeOff className="w-3 h-3" />
-                              ) : (
-                                <Eye className="w-3 h-3" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-0.5 mt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newFields = [...customFields];
-                          newFields[idx].isSecret = !newFields[idx].isSecret;
-                          setCustomFields(newFields);
-                        }}
-                        className={`p-1 rounded-md border transition-colors ${field.isSecret ? "bg-zinc-800 border-zinc-700 text-accent" : "border-zinc-800 text-zinc-500 hover:text-zinc-300"}`}
-                        title={
-                          field.isSecret ? "Secret Field" : "Plaintext Field"
-                        }
-                      >
-                        <Lock className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newFields = customFields.filter(
-                            (_, i) => i !== idx,
-                          );
-                          setCustomFields(newFields);
-                        }}
-                        className="p-1 rounded-md border border-zinc-800 text-zinc-500 hover:text-red-400 hover:border-red-500/50 transition-colors"
-                        title="Delete Field"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[10px] text-zinc-600 bg-zinc-900/50 py-2 px-3 rounded-lg border border-zinc-800/50 text-center font-medium">
-                No custom fields added
-              </p>
             )}
-          </div>
-
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-2">
-            <label className="text-[10px] font-semibold text-zinc-500 block">
-              Tags
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800 text-[10px] font-medium text-zinc-300"
-                >
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => removeTag(tag)}
-                    className="hover:text-white"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="relative focus-within:border-zinc-700 transition-all border border-transparent rounded-lg">
-              <Tag className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
-              <input
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-                placeholder="Add a tag..."
-                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-1.5 pl-7 pr-2 outline-none text-white text-xs placeholder:text-zinc-700"
-              />
-            </div>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-3">
-              <p className="text-[10px] text-zinc-500 font-semibold mb-1.5">
-                Password Strength
-              </p>
-              <div className="flex gap-1 mb-1.5">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className={`h-1 flex-1 rounded-full transition-all duration-500 ${
-                      i <= (category === "Login" ? strength.score : 4)
-                        ? strength.color
-                        : "bg-zinc-800"
-                    }`}
-                  />
-                ))}
-              </div>
-              <p
-                className={`text-[10px] font-semibold transition-colors ${
-                  category === "Login" && strength.score > 0
-                    ? strength.color.replace("bg-", "text-")
-                    : "text-zinc-500"
-                }`}
-              >
-                {category === "Login" ? strength.label : "N/A"}
-              </p>
-            </div>
-            <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-xl p-3">
-              <p className="text-[10px] text-zinc-500 font-semibold mb-1">
-                Last Modified
-              </p>
-              <p className="text-xs font-medium text-white">
-                {item ? timeAgo(item.updatedAt) : "Never"}
-              </p>
-            </div>
           </div>
         </div>
 
+        {/* Login fields */}
+        {category === "Login" && (
+          <div className="bg-zinc-900/30 rounded-2xl px-4 divide-y divide-zinc-800/50">
+            <InputField
+              icon={<Globe className="w-4 h-4" />}
+              label="Website"
+              value={website}
+              onChange={setWebsite}
+              placeholder="google.com"
+              showCopy
+            />
+            <InputField
+              icon={<User className="w-4 h-4" />}
+              label="Username"
+              value={username}
+              onChange={setUsername}
+              placeholder="name@example.com"
+              showCopy
+            />
+            <div className="py-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-zinc-500" />
+                  <p className="text-[11px] font-semibold text-zinc-500">Password</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  className="flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent-hover"
+                >
+                  <Sparkles className="w-3 h-3" /> Generate
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="flex-1 bg-transparent border-none py-0.5 outline-none text-white text-sm font-mono placeholder:text-zinc-600"
+                />
+                <button type="button" onClick={() => copyToClipboard(password, "Password")} className="p-2 text-zinc-500 hover:text-white">
+                  <Copy className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="p-2 text-zinc-500 hover:text-white">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <InputField
+              icon={<Key className="w-4 h-4" />}
+              label="TOTP Secret (2FA)"
+              value={totpSecret}
+              onChange={setTotpSecret}
+              placeholder="JBSWY3DPEHPK3PXP"
+              isMonospace
+            />
+          </div>
+        )}
+
+        {/* Card fields */}
+        {category === "Card" && (
+          <div className="bg-zinc-900/30 rounded-2xl px-4 divide-y divide-zinc-800/50">
+            <InputField
+              icon={<CreditCard className="w-4 h-4" />}
+              label="Card Number"
+              value={cardDetails.number}
+              onChange={(v) => setCardDetails({ ...cardDetails, number: v })}
+              placeholder="0000 0000 0000 0000"
+              isMonospace
+              showCopy
+            />
+            <div className="flex items-center gap-3 py-3">
+              <div className="flex-1">
+                <p className="text-[11px] text-zinc-500 font-medium">Expiry</p>
+                <input
+                  type="text"
+                  value={cardDetails.expiry}
+                  onChange={(e) => setCardDetails({ ...cardDetails, expiry: e.target.value })}
+                  placeholder="MM/YY"
+                  className="w-full bg-transparent border-none py-0.5 outline-none text-white text-sm font-mono placeholder:text-zinc-600"
+                />
+              </div>
+              <div className="flex-1">
+                <p className="text-[11px] text-zinc-500 font-medium">CVV</p>
+                <input
+                  type="text"
+                  value={cardDetails.cvv}
+                  onChange={(e) => setCardDetails({ ...cardDetails, cvv: e.target.value })}
+                  placeholder="123"
+                  className="w-full bg-transparent border-none py-0.5 outline-none text-white text-sm font-mono placeholder:text-zinc-600"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Identity fields */}
+        {category === "Identity" && (
+          <div className="bg-zinc-900/30 rounded-2xl px-4 divide-y divide-zinc-800/50">
+            <div className="flex items-center gap-3 py-3">
+              <div className="flex-1">
+                <p className="text-[11px] text-zinc-500 font-medium">First Name</p>
+                <input
+                  type="text"
+                  value={identityDetails.firstName}
+                  onChange={(e) => setIdentityDetails({ ...identityDetails, firstName: e.target.value })}
+                  className="w-full bg-transparent border-none py-0.5 outline-none text-white text-sm placeholder:text-zinc-600"
+                />
+              </div>
+              <div className="flex-1">
+                <p className="text-[11px] text-zinc-500 font-medium">Last Name</p>
+                <input
+                  type="text"
+                  value={identityDetails.lastName}
+                  onChange={(e) => setIdentityDetails({ ...identityDetails, lastName: e.target.value })}
+                  className="w-full bg-transparent border-none py-0.5 outline-none text-white text-sm placeholder:text-zinc-600"
+                />
+              </div>
+            </div>
+            <InputField
+              icon={<Key className="w-4 h-4" />}
+              label="ID Number"
+              value={identityDetails.idNumber}
+              onChange={(v) => setIdentityDetails({ ...identityDetails, idNumber: v })}
+              placeholder="000-00-0000"
+              isMonospace
+            />
+            <InputField
+              icon={<User className="w-4 h-4" />}
+              label="Date of Birth"
+              value={identityDetails.dob}
+              onChange={(v) => setIdentityDetails({ ...identityDetails, dob: v })}
+              type="date"
+            />
+            <div className="py-3">
+              <p className="text-[11px] text-zinc-500 font-medium">Address</p>
+              <textarea
+                value={identityDetails.address}
+                onChange={(e) => setIdentityDetails({ ...identityDetails, address: e.target.value })}
+                className="w-full bg-transparent border-none py-0.5 outline-none text-white text-sm resize-none h-16 placeholder:text-zinc-600"
+                placeholder="123 Main St..."
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Note */}
+        {category === "Note" && (
+          <div className="bg-zinc-900/30 rounded-2xl p-4">
+            <p className="text-[11px] text-zinc-500 font-medium mb-2">Content</p>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Write your secure notes here..."
+              className="w-full bg-transparent border-none outline-none text-white text-sm resize-none h-40 placeholder:text-zinc-600 leading-relaxed"
+            />
+          </div>
+        )}
+
+        {/* Custom Fields */}
+        <div className="bg-zinc-900/30 rounded-2xl px-4 divide-y divide-zinc-800/50">
+          <div className="flex items-center justify-between py-3">
+            <p className="text-[11px] font-semibold text-zinc-500">Custom Fields</p>
+            <button
+              type="button"
+              onClick={() => setCustomFields([...customFields, { id: crypto.randomUUID(), name: "", value: "", isSecret: false }])}
+              className="flex items-center gap-1 text-[11px] font-medium text-accent"
+            >
+              <Plus className="w-3 h-3" /> Add
+            </button>
+          </div>
+          {customFields.map((field, idx) => (
+            <div key={field.id} className="flex gap-2 items-start py-3">
+              <div className="flex-1 space-y-1.5">
+                <input
+                  type="text"
+                  value={field.name}
+                  onChange={(e) => {
+                    const newFields = [...customFields];
+                    newFields[idx].name = e.target.value;
+                    setCustomFields(newFields);
+                  }}
+                  placeholder="Field name"
+                  className="w-full bg-transparent border-none py-0 outline-none text-white text-sm placeholder:text-zinc-600"
+                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type={field.isSecret && !field._show ? "password" : "text"}
+                    value={field.value}
+                    onChange={(e) => {
+                      const newFields = [...customFields];
+                      newFields[idx].value = e.target.value;
+                      setCustomFields(newFields);
+                    }}
+                    placeholder="Value"
+                    className="flex-1 bg-transparent border-none py-0 outline-none text-white text-sm font-mono placeholder:text-zinc-600"
+                  />
+                  {field.isSecret && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newFields = [...customFields];
+                        newFields[idx]._show = !newFields[idx]._show;
+                        setCustomFields(newFields);
+                      }}
+                      className="p-1 text-zinc-500 hover:text-white"
+                    >
+                      {field._show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newFields = [...customFields];
+                    newFields[idx].isSecret = !newFields[idx].isSecret;
+                    setCustomFields(newFields);
+                  }}
+                  className={`p-1 rounded transition-colors ${field.isSecret ? "text-accent" : "text-zinc-600"}`}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomFields(customFields.filter((_, i) => i !== idx))}
+                  className="p-1 rounded text-zinc-600 hover:text-red-400 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tags */}
+        <div className="bg-zinc-900/30 rounded-2xl p-4 space-y-3">
+          <p className="text-[11px] font-semibold text-zinc-500">Tags</p>
+          <div className="flex flex-wrap gap-1.5">
+            {tags.map((tag) => (
+              <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-zinc-800 text-[11px] font-medium text-zinc-300">
+                {tag}
+                <button type="button" onClick={() => removeTag(tag)} className="hover:text-white">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
+              placeholder="Add a tag..."
+              className="flex-1 bg-zinc-800/50 rounded-lg px-3 py-1.5 outline-none text-white text-xs placeholder:text-zinc-600"
+            />
+            <button type="button" onClick={addTag} className="px-3 bg-zinc-800 text-zinc-300 text-xs rounded-lg hover:bg-zinc-700">Add</button>
+          </div>
+        </div>
+
+        {/* Actions */}
         <div className="pt-2 space-y-2">
           {item?.deletedAt ? (
             <>
@@ -941,100 +564,39 @@ export default function AddVaultItem({
                 <button
                   type="button"
                   onClick={() => onRestore(item.id)}
-                  className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-zinc-200 transition-colors active:scale-[0.98] flex items-center justify-center gap-2 text-sm"
+                  className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-zinc-200 transition-colors active:scale-[0.98] text-sm"
                 >
-                  <Save className="w-4 h-4" />
-                  Restore Item
+                  <Save className="w-4 h-4 inline mr-2" /> Restore Item
                 </button>
               )}
-              {onDelete && (
-                <button
-                  type="button"
-                  onClick={() => onDelete(item.id, true)}
-                  className="w-full bg-zinc-900/50 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-zinc-500 hover:text-red-500 font-medium py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Permanently Delete
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => onDelete?.(item.id, true)}
+                className="w-full text-red-400 font-medium py-3 rounded-xl hover:bg-red-500/10 transition-colors text-sm"
+              >
+                <Trash2 className="w-4 h-4 inline mr-2" /> Permanently Delete
+              </button>
             </>
           ) : (
             <>
               <button
                 type="submit"
-                className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-zinc-200 transition-colors active:scale-[0.98] flex items-center justify-center gap-2 text-sm"
+                className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-zinc-200 transition-colors active:scale-[0.98] text-sm"
               >
-                <Save className="w-4 h-4" />
-                {item ? "Save Changes" : "Create Item"}
+                <Save className="w-4 h-4 inline mr-2" /> {item ? "Save Changes" : "Create Item"}
               </button>
-
-              {item && onDelete && (
+              {item && (
                 <button
                   type="button"
-                  onClick={() => onDelete(item.id)}
-                  className="w-full bg-zinc-900/50 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-zinc-500 hover:text-red-500 font-medium py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
+                  onClick={() => onDelete?.(item.id)}
+                  className="w-full text-red-400 font-medium py-3 rounded-xl hover:bg-red-500/10 transition-colors text-sm"
                 >
-                  <Trash2 className="w-4 h-4" />
-                  {item.deletedAt ? "Permanently Delete" : "Move to Trash"}
+                  <Trash2 className="w-4 h-4 inline mr-2" /> Move to Trash
                 </button>
               )}
             </>
           )}
         </div>
-
-        <div className="bg-zinc-900/30 border border-zinc-800 p-3 rounded-lg">
-          <p className="text-[10px] text-zinc-500 font-medium leading-relaxed">
-            This {category.toLowerCase()} is protected by your end-to-end
-            encrypted vault, securely stored locally.
-          </p>
-        </div>
-
-        {item?.passwordHistory && item.passwordHistory.length > 0 && (
-          <div className="space-y-4 pb-8 border-t border-zinc-800/50 pt-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                <Clock className="w-4 h-4 text-accent" />
-                Password History
-              </h3>
-              <span className="text-xs bg-zinc-800 text-zinc-400 px-2.5 py-0.5 rounded-full font-medium">
-                {item.passwordHistory.length}
-              </span>
-            </div>
-
-            <div className="relative pl-3 space-y-6 before:absolute before:inset-0 before:ml-[15px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-zinc-800 before:to-transparent">
-              {item.passwordHistory.map((h, i) => (
-                <div
-                  key={i}
-                  className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active"
-                >
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full border-4 border-zinc-950 bg-zinc-800 text-zinc-400 z-10 shrink-0">
-                    <div className="w-2 h-2 rounded-full bg-zinc-600"></div>
-                  </div>
-                  <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-zinc-900/40 border border-zinc-800/50 rounded-xl p-4 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-xs text-zinc-500 font-medium">
-                        {new Date(h.timestamp).toLocaleString()}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const dec = decryptedHistory[i];
-                          if (dec) setPassword(dec);
-                        }}
-                        className="text-xs font-semibold text-accent hover:text-accent-hover transition-colors"
-                      >
-                        Restore
-                      </button>
-                    </div>
-                    <div className="text-sm font-mono text-zinc-300 break-all select-all">
-                      {decryptedHistory[i] || "••••••••"}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </form>
     </motion.div>
   );

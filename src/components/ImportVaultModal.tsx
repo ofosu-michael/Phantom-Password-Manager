@@ -6,7 +6,7 @@ import { decrypt, decryptLegacy } from "../lib/crypto";
 interface ImportVaultModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (vaultData: { items: any[]; folders: any[] }) => void;
+  onSuccess: (vaultData: { items: any[]; folders: any[]; password: string }) => void;
 }
 
 export default function ImportVaultModal({
@@ -79,7 +79,7 @@ export default function ImportVaultModal({
 
       setSuccess(true);
       setTimeout(() => {
-        onSuccess({ items, folders });
+        onSuccess({ items, folders, password: oldPassword });
       }, 1000);
     } catch (e) {
       setError("Failed to read file. Make sure it's a valid .pv backup.");

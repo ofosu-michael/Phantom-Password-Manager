@@ -57,6 +57,7 @@ export type View =
   | "home"
   | "add"
   | "edit"
+  | "preview"
   | "settings"
   | "setup"
   | "dashboard";

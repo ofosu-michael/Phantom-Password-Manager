@@ -83,7 +83,7 @@ function showSavePromptWidget(username, password) {
       });
       chrome.runtime.sendMessage({ type: "PROMPT_SAVE_PASSWORD" });
     } catch (err) {
-      console.log("Phantom Vault: Could not send message.");
+      console.log("Phantom Password Manager: Could not send message.");
     }
     widget.remove();
   };
@@ -128,7 +128,7 @@ async function handleFormSubmit(form) {
         return;
       }
     } catch (err) {
-      console.log("Phantom Vault: Error checking credential existence", err);
+      console.log("Phantom Password Manager: Error checking credential existence", err);
     }
     
     showSavePromptWidget(username, password);
@@ -295,7 +295,7 @@ function createWidget(inputField) {
   widget.style.cursor = "pointer";
   widget.style.zIndex = "2147483646";
   widget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.2)";
-  widget.title = "Autofill with Phantom Vault";
+  widget.title = "Autofill with Phantom Password Manager";
 
   widget.onmousedown = (e) => {
     // Prevent focus loss on input
@@ -324,7 +324,7 @@ function createWidget(inputField) {
       if (response.locked) {
         // Vault is locked, prompt to open
         chrome.runtime.sendMessage({ type: "OPEN_SIDE_PANEL" });
-        alert("Phantom Vault is locked. Please open the side panel to unlock it, then try again.");
+        alert("Phantom Password Manager is locked. Please open the side panel to unlock it, then try again.");
       } else if (response.success && response.credentials) {
         if (response.credentials.length === 1) {
           // Auto-fill directly if only 1
@@ -336,7 +336,7 @@ function createWidget(inputField) {
       }
     } catch (err) {
       widget.style.opacity = "1";
-      console.log("Phantom Vault Autofill Error:", err);
+      console.log("Phantom Password Manager Autofill Error:", err);
       // Maybe extension is suspended, try waking it up
       try {
         chrome.runtime.sendMessage({ type: "OPEN_SIDE_PANEL" });
@@ -482,7 +482,7 @@ function showHighlightWidget(rect, text) {
       });
       chrome.runtime.sendMessage({ type: "PROMPT_SAVE_NOTE" });
     } catch (err) {
-      console.log("Phantom Vault: Could not send message.");
+      console.log("Phantom Password Manager: Could not send message.");
     }
     removeHighlightWidget();
     window.getSelection().removeAllRanges();

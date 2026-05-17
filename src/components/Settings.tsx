@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft,
@@ -8,27 +8,36 @@ import {
   Trash2,
   FileText,
   AlertTriangle,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Check,
+  X,
 } from "lucide-react";
 import Papa from "papaparse";
-import { VaultItem } from "../types";
-import { decrypt, encrypt } from "../lib/crypto";
+import zxcvbn from "zxcvbn";
+import { VaultItem, VaultFolder } from "../types";
+import { decrypt, encrypt, hashPassword } from "../lib/crypto";
 
 interface SettingsProps {
   items: VaultItem[];
+  folders: VaultFolder[];
   masterPassword: string;
   autoLockTimeout: number;
   theme: string;
   onUpdateTheme: (theme: string) => void;
   onUpdateAutoLock: (timeout: number) => void;
   onBack: () => void;
-  onImport: (items: VaultItem[]) => void;
+  onImport: (items: VaultItem[], folders?: VaultFolder[]) => void;
   onLock: () => void;
   onClear: () => void;
+  onChangePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
   onShowToast: (text: string, type?: "success" | "error" | "info") => void;
 }
 
 export default function Settings({
   items,
+  folders,
   masterPassword,
   autoLockTimeout,
   theme,
@@ -38,11 +47,22 @@ export default function Settings({
   onImport,
   onLock,
   onClear,
+  onChangePassword,
   onShowToast,
 }: SettingsProps) {
   const [showConfirmWipe, setShowConfirmWipe] = useState(false);
   const [showExportWarning, setShowExportWarning] = useState(false);
   const [exportConfirmText, setExportConfirmText] = useState("");
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const pwStrength = useMemo(() => zxcvbn(newPassword), [newPassword]);
 
   const handleExport = async () => {
     const decryptedItems = await Promise.all(
@@ -62,6 +82,7 @@ export default function Settings({
     link.href = URL.createObjectURL(blob);
     link.download = `vault_export_${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
+    URL.revokeObjectURL(link.href);
     setShowExportWarning(false);
     setExportConfirmText("");
   };
@@ -130,9 +151,6 @@ export default function Settings({
               content: getValue(row, ["content", "note", "notes", "extra"]),
               tags: itemTags.length > 0 ? itemTags : undefined,
               updatedAt: Date.now(),
-              passwordHistory: [
-                { password: encryptedPass, timestamp: Date.now() },
-              ],
             });
           }
         }
@@ -156,12 +174,13 @@ export default function Settings({
   };
 
   const handleBackup = async () => {
-    const encryptedVault = await encrypt(JSON.stringify(items), masterPassword);
+    const encryptedVault = await encrypt(JSON.stringify({ items, folders }), masterPassword);
     const blob = new Blob([encryptedVault], { type: "text/plain" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `vault_backup_${new Date().getTime()}.pv`;
+    link.download = `vault_backup_${new Date().toISOString().split("T")[0]}_${new Date().getTime()}.pv`;
     link.click();
+    URL.revokeObjectURL(link.href);
   };
 
   const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,7 +194,9 @@ export default function Settings({
         const decrypted = await decrypt(content, masterPassword);
         if (decrypted) {
           const parsed = JSON.parse(decrypted);
-          onImport(parsed);
+          const restoredItems = Array.isArray(parsed) ? parsed : parsed.items || [];
+          const restoredFolders = parsed.folders || [];
+          onImport(restoredItems, restoredFolders);
           onShowToast("Vault restored successfully!", "success");
         } else {
           onShowToast("Invalid backup file or master password", "error");
@@ -187,16 +208,57 @@ export default function Settings({
     reader.readAsText(file);
   };
 
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      onShowToast("Please fill in all fields", "error");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      onShowToast("New passwords do not match", "error");
+      return;
+    }
+    if (newPassword.length < 8) {
+      onShowToast("Password must be at least 8 characters", "error");
+      return;
+    }
+    const strength = zxcvbn(newPassword);
+    if (strength.score < 2) {
+      onShowToast("Password is too weak. Add more variety or length.", "error");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    const success = await onChangePassword(currentPassword, newPassword);
+    setIsChangingPassword(false);
+
+    if (success) {
+      setShowChangePassword(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      onShowToast("Master password changed successfully", "success");
+    } else {
+      onShowToast("Current password is incorrect", "error");
+    }
+  };
+
+  const formatTimeout = (ms: number) => {
+    if (ms === 0) return "Never";
+    if (ms < 60000) return `${ms / 1000}s`;
+    if (ms < 3600000) return `${ms / 60000}m`;
+    return `${ms / 3600000}h`;
+  };
+
   return (
-    <div className="px-3 flex flex-col h-full flex-1 w-full bg-black custom-scrollbar overflow-y-auto pt-3 pb-20">
-      <div className="flex items-center gap-3 mb-4">
+    <div className="px-4 flex flex-col h-full flex-1 w-full bg-black custom-scrollbar overflow-y-auto pt-4 pb-20">
+      <div className="flex items-center gap-3 mb-5">
         <button
           onClick={onBack}
-          className="p-1.5 -ml-1.5 hover:bg-zinc-900 rounded-lg text-zinc-500 hover:text-white transition-colors"
+          className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-base font-semibold text-white tracking-tight">
+        <h2 className="text-lg font-semibold text-white tracking-tight">
           Settings
         </h2>
       </div>
@@ -204,91 +266,90 @@ export default function Settings({
       <div className="space-y-4 flex-1">
         {/* Security */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-zinc-400 px-1">Security</p>
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-3">
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Your vault is protected with AES-256-GCM encryption with PBKDF2 key derivation (100,000 iterations). All data is stored locally.
-            </p>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-semibold text-white">Auto-Lock</h4>
-                  <p className="text-[10px] text-zinc-500">Lock after inactivity</p>
-                </div>
-                <select
-                  value={autoLockTimeout.toString()}
-                  onChange={(e) => onUpdateAutoLock(parseInt(e.target.value))}
-                  className="bg-zinc-800 border border-zinc-700 text-white text-xs rounded-lg px-2 py-1.5 outline-none focus:border-zinc-500"
-                >
-                  <option value="60000">1 min</option>
-                  <option value="300000">5 min</option>
-                  <option value="900000">15 min</option>
-                  <option value="3600000">1 hour</option>
-                  <option value="0">Never</option>
-                </select>
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider px-1">Security</p>
+          <div className="bg-zinc-900/30 rounded-2xl divide-y divide-zinc-800/50">
+            <div className="flex items-center justify-between p-4">
+              <div>
+                <p className="text-sm font-medium text-white">Auto-Lock</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Lock after inactivity</p>
               </div>
+              <select
+                value={autoLockTimeout.toString()}
+                onChange={(e) => onUpdateAutoLock(parseInt(e.target.value))}
+                className="bg-zinc-800 border border-zinc-700 text-white text-xs rounded-lg px-3 py-1.5 outline-none focus:border-zinc-500"
+              >
+                <option value="60000">1 min</option>
+                <option value="300000">5 min</option>
+                <option value="900000">15 min</option>
+                <option value="3600000">1 hour</option>
+                <option value="0">Never</option>
+              </select>
             </div>
             <button
               onClick={onLock}
-              className="w-full py-2.5 bg-zinc-800 text-white text-xs font-semibold rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-2"
+              className="w-full flex items-center justify-center gap-2 p-4 text-sm font-medium text-white hover:bg-zinc-800/50 transition-colors"
             >
-              <Lock className="w-3.5 h-3.5" />
+              <Lock className="w-4 h-4" />
               Lock Vault Now
+            </button>
+            <button
+              onClick={() => setShowChangePassword(true)}
+              className="w-full flex items-center justify-center gap-2 p-4 text-sm font-medium text-white hover:bg-zinc-800/50 transition-colors"
+            >
+              <KeyRound className="w-4 h-4" />
+              Change Master Password
             </button>
           </div>
         </div>
 
-        {/* Data Management */}
+        {/* Data */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-zinc-400 px-1">Data</p>
-          <div className="space-y-2">
-            {/* Import/Export */}
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-3">
-              <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider px-1">Data</p>
+          <div className="bg-zinc-900/30 rounded-2xl divide-y divide-zinc-800/50">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h4 className="text-xs font-semibold text-white">Import / Export</h4>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">CSV from any manager</p>
+                  <p className="text-sm font-medium text-white">Import / Export</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">CSV from any password manager</p>
                 </div>
                 <FileText className="w-5 h-5 text-zinc-600" />
               </div>
-              <div className="flex gap-2">
+               <div className="flex gap-2">
                 <label className="flex-1">
                   <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
-                  <div className="w-full py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-zinc-700 hover:border-zinc-600">
+                  <div className="w-full py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
                     <Upload className="w-3.5 h-3.5" />
-                    Import
+                    Import CSV
                   </div>
                 </label>
                 <button
                   onClick={() => setShowExportWarning(true)}
-                  className="flex-1 py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-1.5 border border-zinc-700 hover:border-zinc-600"
+                  className="flex-1 py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  Export
+                  Export CSV
                 </button>
               </div>
             </div>
-
-            {/* Backup */}
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-3">
-              <div className="flex items-center justify-between">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h4 className="text-xs font-semibold text-white">Encrypted Backup</h4>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">Safe vault backup</p>
+                  <p className="text-sm font-medium text-white">Encrypted Backup</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">Safe vault backup (.pv)</p>
                 </div>
                 <img src="/logo.svg" alt="Phantom" className="w-5 h-5" />
               </div>
               <div className="flex gap-2">
                 <label className="flex-1">
                   <input type="file" accept=".pv" onChange={handleRestore} className="hidden" />
-                  <div className="w-full py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-zinc-700 hover:border-zinc-600">
+                  <div className="w-full py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
                     <Upload className="w-3.5 h-3.5" />
                     Restore
                   </div>
                 </label>
                 <button
                   onClick={handleBackup}
-                  className="flex-1 py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-1.5 border border-zinc-700 hover:border-zinc-600"
+                  className="flex-1 py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Backup
@@ -302,7 +363,7 @@ export default function Settings({
         <div className="pt-2">
           <button
             onClick={() => setShowConfirmWipe(true)}
-            className="w-full py-3 border border-red-500/20 text-red-500 text-xs font-semibold rounded-xl hover:bg-red-500/10 transition-all flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl text-red-400 font-medium hover:bg-red-500/10 transition-colors text-sm flex items-center justify-center gap-2"
           >
             <Trash2 className="w-4 h-4" />
             Wipe Vault Storage
@@ -322,10 +383,10 @@ export default function Settings({
               className="absolute inset-0 bg-black/60 backdrop-blur-md"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-xs bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4 shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-xs bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-2xl"
             >
               <div className="flex flex-col items-center text-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
@@ -357,7 +418,7 @@ export default function Settings({
                 </button>
                 <button
                   onClick={() => { setShowExportWarning(false); setExportConfirmText(""); }}
-                  className="w-full py-3 bg-zinc-800 text-white text-xs font-semibold rounded-xl hover:bg-zinc-700 transition-colors border border-zinc-700"
+                  className="w-full py-3 bg-zinc-800 text-white text-xs font-semibold rounded-xl hover:bg-zinc-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -379,10 +440,10 @@ export default function Settings({
               className="absolute inset-0 bg-black/60 backdrop-blur-md"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-xs bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4 shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-xs bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-2xl"
             >
               <div className="flex flex-col items-center text-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
@@ -406,7 +467,157 @@ export default function Settings({
                 </button>
                 <button
                   onClick={() => setShowConfirmWipe(false)}
-                  className="w-full py-3 bg-zinc-800 text-white text-xs font-semibold rounded-xl hover:bg-zinc-700 transition-colors border border-zinc-700"
+                  className="w-full py-3 bg-zinc-800 text-white text-xs font-semibold rounded-xl hover:bg-zinc-700 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Change Master Password Modal */}
+      <AnimatePresence>
+        {showChangePassword && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setShowChangePassword(false); setCurrentPassword(""); setNewPassword(""); setConfirmNewPassword(""); }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-2xl"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-white">Change Master Password</h3>
+                <button
+                  onClick={() => { setShowChangePassword(false); setCurrentPassword(""); setNewPassword(""); setConfirmNewPassword(""); }}
+                  className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4 text-zinc-400" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="relative">
+                  <label className="text-[11px] font-medium text-zinc-500 mb-1 block">Current Password</label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPw ? "text" : "password"}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2.5 pr-10 outline-none focus:border-zinc-500 placeholder:text-zinc-500"
+                      placeholder="Enter current password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPw(!showCurrentPw)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                    >
+                      {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <label className="text-[11px] font-medium text-zinc-500 mb-1 block">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPw ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2.5 pr-10 outline-none focus:border-zinc-500 placeholder:text-zinc-500"
+                      placeholder="Enter new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPw(!showNewPw)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                    >
+                      {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {newPassword && (
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex gap-1">
+                        {[0, 1, 2, 3, 4].map((i) => (
+                          <div
+                            key={i}
+                            className={`h-1 flex-1 rounded-full transition-colors ${
+                              i < pwStrength.score
+                                ? pwStrength.score <= 1
+                                  ? "bg-red-500"
+                                  : pwStrength.score <= 2
+                                  ? "bg-yellow-500"
+                                  : pwStrength.score <= 3
+                                  ? "bg-blue-500"
+                                  : "bg-green-500"
+                                : "bg-zinc-700"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-zinc-500">
+                        {pwStrength.feedback.warning || (pwStrength.score >= 3 ? "Strong password" : "Weak password")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <label className="text-[11px] font-medium text-zinc-500 mb-1 block">Confirm New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPw ? "text" : "password"}
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className={`w-full bg-zinc-800 border text-sm rounded-xl px-3 py-2.5 pr-10 outline-none focus:border-zinc-500 placeholder:text-zinc-500 ${
+                        confirmNewPassword && confirmNewPassword !== newPassword
+                          ? "border-red-500/50"
+                          : confirmNewPassword && confirmNewPassword === newPassword
+                          ? "border-green-500/50"
+                          : "border-zinc-700"
+                      }`}
+                      placeholder="Confirm new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPw(!showConfirmPw)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                    >
+                      {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                    {confirmNewPassword && confirmNewPassword === newPassword && (
+                      <Check className="absolute right-10 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  onClick={handleChangePassword}
+                  disabled={isChangingPassword || !currentPassword || !newPassword || !confirmNewPassword || newPassword !== confirmNewPassword}
+                  className="w-full py-3 bg-white text-black text-xs font-semibold rounded-xl hover:bg-zinc-200 disabled:opacity-50 disabled:bg-zinc-800 disabled:text-zinc-500 transition-colors flex items-center justify-center gap-2"
+                >
+                  {isChangingPassword ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-zinc-400 border-t-black rounded-full animate-spin" />
+                      Re-encrypting vault...
+                    </>
+                  ) : (
+                    "Change Password"
+                  )}
+                </button>
+                <button
+                  onClick={() => { setShowChangePassword(false); setCurrentPassword(""); setNewPassword(""); setConfirmNewPassword(""); }}
+                  className="w-full py-3 bg-zinc-800 text-white text-xs font-semibold rounded-xl hover:bg-zinc-700 transition-colors"
                 >
                   Cancel
                 </button>

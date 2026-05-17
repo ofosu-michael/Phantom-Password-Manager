@@ -33,10 +33,12 @@ import { VaultItem, VaultFolder, View } from "./types";
 import UnlockScreen from "./components/UnlockScreen.tsx";
 import VaultList from "./components/VaultList.tsx";
 import AddVaultItem from "./components/AddVaultItem.tsx";
+import ItemPreview from "./components/ItemPreview.tsx";
 import DashboardView from "./components/Dashboard";
 import SettingsView from "./components/Settings";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import ImportVaultModal from "./components/ImportVaultModal";
+import BottomNav from "./components/BottomNav";
 
 const STORAGE_KEY = "phantom_vault_data";
 const MASTER_HASH_KEY = "phantom_vault_master";
@@ -51,10 +53,10 @@ export default function App() {
   const [pendingPassword, setPendingPassword] = useState("");
   const [isInitialized, setIsInitialized] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
-  const [lastActivity, setLastActivity] = useState(Date.now());
   const [autoLockTimeout, setAutoLockTimeout] = useState<number>(() => {
     const saved = localStorage.getItem("phantom_vault_autolock");
-    return saved ? parseInt(saved, 10) : 5 * 60 * 1000;
+    const parsed = saved ? parseInt(saved, 10) : 5 * 60 * 1000;
+    return isNaN(parsed) ? 5 * 60 * 1000 : parsed;
   });
   const [breachedIds, setBreachedIds] = useState<string[]>([]);
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -66,8 +68,10 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const importedVaultDataRef = useRef<{ items: VaultItem[]; folders: VaultFolder[] } | null>(null);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const sessionTokenRef = useRef<string | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -237,10 +241,12 @@ export default function App() {
     type: "success" | "error" | "info";
   } | null>(null);
 
-  const showToast = (text: string, type: "success" | "error" | "info" = "info") => {
+  const showToast = useCallback((text: string, type: "success" | "error" | "info" = "info") => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
+
+  const [decryptedPasswords, setDecryptedPasswords] = useState<Record<string, string>>({});
 
   const [securityAudit, setSecurityAudit] = useState({
     score: 100,
@@ -252,6 +258,7 @@ export default function App() {
 
   useEffect(() => {
     if (!masterPassword || items.length === 0) {
+      setDecryptedPasswords({});
       setSecurityAudit({ score: 100, reused: 0, breached: 0, breachedIds: [] });
       setIsAuditLoading(false);
       return;
@@ -261,55 +268,79 @@ export default function App() {
     let cancelled = false;
 
     const computeAuditAndBreaches = async () => {
-      const decryptedPasswords: Record<string, string[]> = {};
-      const newBreachedIds: string[] = [];
-      const hibpCache = new Map<string, number>();
-
-      for (const item of items) {
-        if (item.category !== "Login") continue;
-        try {
-          const pass = await decrypt(item.encryptedPassword, masterPassword);
-          if (!pass) continue;
-
-          // Reuse tracking
-          if (!decryptedPasswords[pass]) decryptedPasswords[pass] = [];
-          decryptedPasswords[pass].push(item.id);
-
-          // HIBP breach check
-          let count = 0;
-          if (hibpCache.has(pass)) {
-            count = hibpCache.get(pass)!;
-          } else {
-            count = await checkPasswordBreach(pass);
-            hibpCache.set(pass, count);
-          }
-          if (count > 0) {
-            newBreachedIds.push(item.id);
-          }
-        } catch {}
-      }
-
-      if (cancelled) return;
-
-      let reusedCount = 0;
-      Object.values(decryptedPasswords).forEach((ids) => {
-        if (ids.length > 1) reusedCount += ids.length;
-      });
-
-      const totalLogins = items.filter((i) => i.category === "Login").length;
-      if (totalLogins === 0) {
+      const loginItems = items.filter(i => i.category === "Login");
+      if (loginItems.length === 0) {
         if (!cancelled) {
+          setDecryptedPasswords({});
           setSecurityAudit({ score: 100, reused: 0, breached: 0, breachedIds: [] });
           setIsAuditLoading(false);
         }
         return;
       }
 
+      // Decrypt ALL passwords in parallel
+      const decryptedMap: Record<string, string> = {};
+      const results = await Promise.all(
+        loginItems.map(async (item) => {
+          try {
+            const pass = await decrypt(item.encryptedPassword, masterPassword);
+            return { id: item.id, pass: pass || "" };
+          } catch {
+            return { id: item.id, pass: "" };
+          }
+        })
+      );
+
+      results.forEach(({ id, pass }) => {
+        if (pass) decryptedMap[id] = pass;
+      });
+
+      if (cancelled) return;
+      setDecryptedPasswords(decryptedMap);
+
+      // Reuse tracking
+      const decryptedPasswords: Record<string, string[]> = {};
+      Object.values(decryptedMap).forEach((pass, idx) => {
+        if (!pass) return;
+        const itemId = loginItems[idx].id;
+        if (!decryptedPasswords[pass]) decryptedPasswords[pass] = [];
+        decryptedPasswords[pass].push(itemId);
+      });
+
+      let reusedCount = 0;
+      Object.values(decryptedPasswords).forEach((ids) => {
+        if (ids.length > 1) reusedCount += ids.length;
+      });
+
+      // HIBP breach check (with caching)
+      const newBreachedIds: string[] = [];
+      const hibpCache = new Map<string, number>();
+      const uniquePasswords = [...new Set(Object.values(decryptedMap))];
+
+      const breachResults = await Promise.all(
+        uniquePasswords.filter(Boolean).map(async (pass) => {
+          if (hibpCache.has(pass)) return { pass, count: hibpCache.get(pass)! };
+          const count = await checkPasswordBreach(pass);
+          hibpCache.set(pass, count);
+          return { pass, count };
+        })
+      );
+
+      breachResults.forEach(({ pass, count }) => {
+        if (count > 0) {
+          Object.entries(decryptedMap)
+            .filter(([, p]) => p === pass)
+            .forEach(([id]) => newBreachedIds.push(id));
+        }
+      });
+
+      if (cancelled) return;
+
       const breachedCount = newBreachedIds.length;
       const deductions = reusedCount * 20 + breachedCount * 40;
       const score = Math.max(
         0,
-        100 - Math.round((deductions / (totalLogins * 40)) * 100)
+        100 - Math.round((deductions / (loginItems.length * 40)) * 100)
       );
 
       if (!cancelled) {
@@ -334,6 +365,7 @@ export default function App() {
   const clearSession = useCallback(() => {
     setMasterPassword("");
     sessionTokenRef.current = null;
+    lastActivityRef.current = Date.now();
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
       chrome.storage.session.remove([SESSION_KEY, "lastActivity"]);
     }
@@ -352,7 +384,8 @@ export default function App() {
         chrome.storage.session.get([SESSION_KEY, "lastActivity"], async (result) => {
           if (result[SESSION_KEY]) {
             const now = Date.now();
-            const savedLastActivity = result.lastActivity || now;
+            const savedLastActivity = (result.lastActivity as number) || now;
+            lastActivityRef.current = savedLastActivity;
             const savedAutoLock = localStorage.getItem("phantom_vault_autolock");
             const timeout = savedAutoLock ? parseInt(savedAutoLock, 10) : 5 * 60 * 1000;
 
@@ -397,18 +430,28 @@ export default function App() {
     if (!masterPassword || autoLockTimeout === 0) return;
 
     const interval = setInterval(() => {
-      if (Date.now() - lastActivity > autoLockTimeout) {
+      if (Date.now() - lastActivityRef.current > autoLockTimeout) {
         clearSession();
         setView("unlock");
       }
     }, 10000);
 
-    const updateActivity = () => setLastActivity(Date.now());
+    let lastActivitySync = 0;
+    const updateActivity = () => {
+      lastActivityRef.current = Date.now();
+      const now = Date.now();
+      if (now - lastActivitySync < 5000) return;
+      lastActivitySync = now;
+      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+        chrome.storage.session.set({ lastActivity: lastActivityRef.current });
+      }
+    };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
+        lastActivityRef.current = Date.now();
         if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
-          chrome.storage.session.set({ lastActivity: Date.now() });
+          chrome.storage.session.set({ lastActivity: lastActivityRef.current });
         }
       }
     };
@@ -425,7 +468,7 @@ export default function App() {
       window.removeEventListener("click", updateActivity);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [masterPassword, lastActivity, autoLockTimeout, clearSession]);
+  }, [masterPassword, autoLockTimeout, clearSession]);
 
   useEffect(() => {
     if (!masterPassword) return;
@@ -493,21 +536,25 @@ export default function App() {
 
   const saveItems = useCallback(
     async (newItems: VaultItem[], targetFolders: VaultFolder[] = folders) => {
-      if (!masterPassword || isSaving) return;
-      setIsSaving(true);
-      try {
-        const encrypted = await encrypt(
-          JSON.stringify({ items: newItems, folders: targetFolders }),
-          masterPassword
-        );
-        localStorage.setItem(STORAGE_KEY, encrypted);
-        setItems(newItems);
-        setFolders(targetFolders);
-      } finally {
-        setIsSaving(false);
-      }
+      if (!masterPassword) return;
+      const prevSave = saveQueueRef.current;
+      saveQueueRef.current = prevSave.then(async () => {
+        setIsSaving(true);
+        try {
+          const encrypted = await encrypt(
+            JSON.stringify({ items: newItems, folders: targetFolders }),
+            masterPassword
+          );
+          localStorage.setItem(STORAGE_KEY, encrypted);
+          setItems(newItems);
+          setFolders(targetFolders);
+        } finally {
+          setIsSaving(false);
+        }
+      });
+      return saveQueueRef.current;
     },
-    [masterPassword, folders, isSaving]
+    [masterPassword, folders]
   );
 
   const handleUnlock = async (password: string): Promise<boolean> => {
@@ -522,6 +569,7 @@ export default function App() {
       setMasterPassword(password);
       const token = generateSecureId();
       sessionTokenRef.current = token;
+      lastActivityRef.current = Date.now();
       if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
         chrome.storage.session.set({ [SESSION_KEY]: token, lastActivity: Date.now() });
       }
@@ -545,6 +593,7 @@ export default function App() {
       setMasterPassword(password);
       const token = generateSecureId();
       sessionTokenRef.current = token;
+      lastActivityRef.current = Date.now();
       if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
         chrome.storage.session.set({ [SESSION_KEY]: token, lastActivity: Date.now() });
       }
@@ -570,9 +619,10 @@ export default function App() {
       const existingItem = items.find((i) => i.id === newItem.id);
       if (existingItem && newItem.category === "Login" && newItem.encryptedPassword) {
         const oldPassRaw = await decrypt(existingItem.encryptedPassword, masterPassword);
-        if (oldPassRaw !== newItem.encryptedPassword) {
+        if (oldPassRaw && oldPassRaw !== newItem.encryptedPassword) {
+          const reencryptedOldPass = await encrypt(oldPassRaw, masterPassword);
           history = [
-            { password: existingItem.encryptedPassword, timestamp: existingItem.updatedAt },
+            { password: reencryptedOldPass, timestamp: existingItem.updatedAt },
             ...(existingItem.passwordHistory || []),
           ].slice(0, 5);
         }
@@ -582,6 +632,9 @@ export default function App() {
     }
 
     const encryptedPassword = await encrypt(newItem.encryptedPassword || "", masterPassword);
+
+    const decryptedPlain = await decrypt(newItem.encryptedPassword || "", masterPassword);
+    const strengthScore = decryptedPlain ? calculateTimeToCrack(decryptedPlain).score : 0;
 
     const itemToAdd: VaultItem = {
       id: newItem.id || generateSecureId(),
@@ -593,8 +646,14 @@ export default function App() {
       encryptedTotpSecret: newItem.encryptedTotpSecret,
       content: newItem.content || "",
       cardDetails: newItem.cardDetails,
+      identityDetails: newItem.identityDetails,
+      folderId: newItem.folderId,
+      isFavorite: newItem.isFavorite,
+      customIcon: newItem.customIcon,
+      customIconColor: newItem.customIconColor,
+      customFields: newItem.customFields,
       passwordHistory: history,
-      strength: newItem.strength || 0,
+      strength: strengthScore,
       tags: newItem.tags || [],
       deletedAt: items.find((i) => i.id === newItem.id)?.deletedAt,
       updatedAt: Date.now(),
@@ -610,7 +669,7 @@ export default function App() {
     }
 
     await saveItems(newItems);
-    setView("home");
+    setView(newItem.id ? "preview" : "home");
     setPendingPassword("");
   };
 
@@ -741,10 +800,21 @@ export default function App() {
             <ImportVaultModal
               isOpen={showImportModal}
               onClose={() => setShowImportModal(false)}
-              onSuccess={(data) => {
-                importedVaultDataRef.current = { items: data.items, folders: data.folders };
+              onSuccess={async (data) => {
+                const hashed = await hashPassword(data.password);
+                localStorage.setItem(MASTER_HASH_KEY, hashed);
+                setMasterPassword(data.password);
+                const encrypted = await encrypt(
+                  JSON.stringify({ items: data.items, folders: data.folders }),
+                  data.password
+                );
+                localStorage.setItem(STORAGE_KEY, encrypted);
+                setItems(data.items);
+                setFolders(data.folders);
+                importedVaultDataRef.current = null;
                 setShowImportModal(false);
                 showToast(`Imported ${data.items.length} items`, "success");
+                setView("home");
               }}
             />
           </motion.div>
@@ -783,35 +853,62 @@ export default function App() {
               onBulkRestore={handleBulkRestore}
               onEdit={(item) => {
                 setEditingItem(item);
-                setView("edit");
+                setView("preview");
               }}
               onDashboard={() => setView("dashboard")}
               onSettings={() => setView("settings")}
             />
             </ErrorBoundary>
-            <div className="absolute bottom-0 left-0 w-full h-[56px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[9px] uppercase font-semibold">
-              <button
-                onClick={() => setView("home")}
-                className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "home" ? "text-white" : "hover:text-zinc-300"}`}
-              >
-                <img src="/logo.svg" alt="Phantom" className="w-6 h-6" />
-                <span>Vault</span>
-              </button>
-              <button
-                onClick={() => setView("dashboard")}
-                className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
-              >
-                <LayoutDashboard className="w-5 h-5" />
-                <span>Audit</span>
-              </button>
-              <button
-                onClick={() => setView("settings")}
-                className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "settings" ? "text-white" : "hover:text-zinc-300"}`}
-              >
-                <Settings className="w-5 h-5" />
-                <span>Settings</span>
-              </button>
-            </div>
+            <BottomNav view={view} onViewChange={setView} />
+          </motion.div>
+        )}
+
+        {view === "preview" && editingItem && (
+          <motion.div
+            key="preview"
+            initial={{ x: 360 }}
+            animate={{ x: 0 }}
+            exit={{ x: 360 }}
+            className="h-full flex-1 w-full flex flex-col relative"
+          >
+            <ErrorBoundary>
+              <ItemPreview
+                item={editingItem}
+                folders={folders}
+                masterPassword={masterPassword}
+                onBack={() => setView("home")}
+                onEdit={() => setView("edit")}
+                onDelete={handleDelete}
+                onRestore={handleRestore}
+                onRestorePassword={async (id, oldPassword) => {
+                  const existingItem = items.find((i) => i.id === id);
+                  if (!existingItem) return;
+                  const newEncryptedPassword = await encrypt(oldPassword, masterPassword);
+                  const history = [
+                    { password: existingItem.encryptedPassword, timestamp: existingItem.updatedAt },
+                    ...(existingItem.passwordHistory || []),
+                  ].slice(0, 5);
+                  const updatedItem = {
+                    ...existingItem,
+                    encryptedPassword: newEncryptedPassword,
+                    passwordHistory: history,
+                    updatedAt: Date.now(),
+                  };
+                  const newItems = items.map((i) => (i.id === id ? updatedItem : i));
+                  await saveItems(newItems);
+                  setEditingItem(updatedItem);
+                  showToast("Password restored from history", "success");
+                }}
+                onToggleFavorite={async (id) => {
+                  const newItems = items.map((i) =>
+                    i.id === id ? { ...i, isFavorite: !i.isFavorite, updatedAt: Date.now() } : i
+                  );
+                  await saveItems(newItems);
+                  setEditingItem((prev) => prev?.id === id ? { ...prev, isFavorite: !prev.isFavorite } : prev);
+                }}
+                onShowToast={showToast}
+              />
+            </ErrorBoundary>
           </motion.div>
         )}
 
@@ -833,7 +930,7 @@ export default function App() {
               onDelete={handleDelete}
               onRestore={handleRestore}
               onCancel={() => {
-                setView("home");
+                setView(editingItem ? "preview" : "home");
                 setPendingPassword("");
               }}
               onShowToast={showToast}
@@ -855,37 +952,16 @@ export default function App() {
               items={items}
               audit={securityAudit}
               masterPassword={masterPassword}
+              decryptedPasswords={decryptedPasswords}
               isLoading={isAuditLoading}
               onBack={() => setView("home")}
               onEdit={(item) => {
                 setEditingItem(item);
-                setView("edit");
+                setView("preview");
               }}
             />
             </ErrorBoundary>
-            <div className="absolute bottom-0 left-0 w-full h-[56px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[9px] uppercase font-semibold">
-              <button
-                onClick={() => setView("home")}
-                className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "home" ? "text-white" : "hover:text-zinc-300"}`}
-              >
-                <img src="/logo.svg" alt="Phantom" className="w-6 h-6" />
-                <span>Vault</span>
-              </button>
-              <button
-                onClick={() => setView("dashboard")}
-                className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
-              >
-                <LayoutDashboard className="w-5 h-5" />
-                <span>Audit</span>
-              </button>
-              <button
-                onClick={() => setView("settings")}
-                className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "settings" ? "text-white" : "hover:text-zinc-300"}`}
-              >
-                <Settings className="w-5 h-5" />
-                <span>Settings</span>
-              </button>
-            </div>
+            <BottomNav view={view} onViewChange={setView} />
           </motion.div>
         )}
 
@@ -900,6 +976,7 @@ export default function App() {
             <ErrorBoundary>
               <SettingsView
               items={items}
+              folders={folders}
               masterPassword={masterPassword}
               autoLockTimeout={autoLockTimeout}
               theme={theme}
@@ -915,14 +992,15 @@ export default function App() {
               }}
               onBack={() => setView("home")}
               onShowToast={showToast}
-              onImport={async (newItems) => {
+              onImport={async (newItems, newFolders) => {
                 const combinedItems = [...items];
                 newItems.forEach((ni) => {
                   if (!combinedItems.find((ci) => ci.title === ni.title && ci.username === ni.username)) {
                     combinedItems.push(ni);
                   }
                 });
-                await saveItems(combinedItems);
+                const combinedFolders = newFolders ? [...folders, ...newFolders.filter((nf) => !folders.find((f) => f.id === nf.id))] : folders;
+                await saveItems(combinedItems, combinedFolders);
               }}
               onLock={() => {
                 clearSession();
@@ -937,31 +1015,77 @@ export default function App() {
                   window.location.reload();
                 }, 100);
                 }}
+              onChangePassword={async (oldPassword, newPassword) => {
+                const oldHash = await hashPassword(oldPassword);
+                const storedHash = localStorage.getItem(MASTER_HASH_KEY);
+                if (oldHash !== storedHash) return false;
+
+                const newHash = await hashPassword(newPassword);
+                localStorage.setItem(MASTER_HASH_KEY, newHash);
+
+                const reencryptedItems = await Promise.all(
+                  items.map(async (item) => {
+                    const newItem = { ...item };
+                    try {
+                      const pass = await decrypt(item.encryptedPassword, oldPassword);
+                      if (pass) newItem.encryptedPassword = await encrypt(pass, newPassword);
+                    } catch {
+                      newItem.encryptedPassword = item.encryptedPassword;
+                    }
+                    if (item.encryptedTotpSecret) {
+                      try {
+                        const totp = await decrypt(item.encryptedTotpSecret, oldPassword);
+                        if (totp) newItem.encryptedTotpSecret = await encrypt(totp, newPassword);
+                      } catch {
+                        newItem.encryptedTotpSecret = item.encryptedTotpSecret;
+                      }
+                    }
+                    if (item.passwordHistory && item.passwordHistory.length > 0) {
+                      newItem.passwordHistory = await Promise.all(
+                        item.passwordHistory.map(async (entry) => {
+                          try {
+                            const oldPass = await decrypt(entry.password, oldPassword);
+                            if (oldPass) return { ...entry, password: await encrypt(oldPass, newPassword) };
+                          } catch {}
+                          return entry;
+                        })
+                      );
+                    }
+                    if (item.customFields && item.customFields.length > 0) {
+                      newItem.customFields = await Promise.all(
+                        item.customFields.map(async (cf) => {
+                          if (cf.isSecret && cf.value) {
+                            try {
+                              const val = await decrypt(cf.value, oldPassword);
+                              if (val) return { ...cf, value: await encrypt(val, newPassword) };
+                            } catch {}
+                          }
+                          return cf;
+                        })
+                      );
+                    }
+                    return newItem;
+                  })
+                );
+
+                const encrypted = await encrypt(
+                  JSON.stringify({ items: reencryptedItems, folders }),
+                  newPassword
+                );
+                localStorage.setItem(STORAGE_KEY, encrypted);
+                setItems(reencryptedItems);
+                setMasterPassword(newPassword);
+                const token = generateSecureId();
+                sessionTokenRef.current = token;
+                lastActivityRef.current = Date.now();
+                if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+                  chrome.storage.session.set({ [SESSION_KEY]: token, lastActivity: Date.now() });
+                }
+                return true;
+              }}
               />
             </ErrorBoundary>
-            <div className="absolute bottom-0 left-0 w-full h-[56px] bg-black border-t border-zinc-900/80 flex justify-center gap-16 text-zinc-500 text-[9px] uppercase font-semibold">
-              <button
-                onClick={() => setView("home")}
-                className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "home" ? "text-white" : "hover:text-zinc-300"}`}
-              >
-                <img src="/logo.svg" alt="Phantom" className="w-6 h-6" />
-                <span>Vault</span>
-              </button>
-              <button
-                onClick={() => setView("dashboard")}
-                className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
-              >
-                <LayoutDashboard className="w-5 h-5" />
-                <span>Audit</span>
-              </button>
-              <button
-                onClick={() => setView("settings")}
-                className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "settings" ? "text-white" : "hover:text-zinc-300"}`}
-              >
-                <Settings className="w-5 h-5" />
-                <span>Settings</span>
-              </button>
-            </div>
+            <BottomNav view={view} onViewChange={setView} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -972,7 +1096,7 @@ export default function App() {
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed top-6 left-6 right-6 z-50 pointer-events-none flex justify-center"
+            className="fixed top-6 left-6 right-6 z-[110] pointer-events-none flex justify-center"
           >
             <div
               className={`px-4 py-3 rounded-xl border flex items-center gap-3 shadow-2xl pointer-events-auto ${

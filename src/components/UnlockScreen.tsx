@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import zxcvbn from 'zxcvbn';
 
 interface UnlockScreenProps {
-  onUnlock: (password: string) => boolean;
+  onUnlock: (password: string) => boolean | Promise<boolean>;
   isFirstTime?: boolean;
   lockoutUntil?: number | null;
   onImportVault?: () => void;
@@ -45,11 +45,11 @@ export default function UnlockScreen({ onUnlock, isFirstTime = false, lockoutUnt
     setStrength({ score: result.score, crackTime });
   }, [password, isFirstTime]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (timeLeft > 0 || !password) return;
     if (isFirstTime && strength && strength.score < 2) return;
-    const success = onUnlock(password);
+    const success = await onUnlock(password);
     if (!success) {
       setError(true);
       if (!isFirstTime) {

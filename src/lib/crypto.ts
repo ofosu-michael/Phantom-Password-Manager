@@ -183,8 +183,9 @@ export async function needsMigration(): Promise<boolean> {
     const savedData = localStorage.getItem("phantom_vault_data");
     if (savedData) {
       try {
-        JSON.parse(savedData);
-        return false;
+        const parsed = JSON.parse(savedData);
+        if (parsed.v && parsed.v >= CURRENT_VERSION) return false;
+        return true;
       } catch {
         return true;
       }

@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, AlertTriangle, Key, ShieldCheck, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { VaultItem } from '../types';
-import { decrypt, calculateTimeToCrack } from '../lib/crypto';
+import { calculateTimeToCrack } from '../lib/crypto';
 
 interface DashboardProps {
   items: VaultItem[];
   audit: { score: number, reused: number, breached: number, breachedIds: string[] };
+  decryptedPasswords: Record<string, string>;
   masterPassword?: string;
   onBack: () => void;
   onEdit: (item: VaultItem) => void;
@@ -21,59 +22,20 @@ interface AnalyzedLogin {
   hasTotp: boolean;
 }
 
-function SkeletonBar({ className = '' }: { className?: string }) {
-  return (
-    <div className={`bg-zinc-800 rounded-full animate-pulse ${className}`} />
-  );
-}
-
-function SkeletonBox({ className = '' }: { className?: string }) {
-  return (
-    <div className={`bg-zinc-800 rounded-xl animate-pulse ${className}`} />
-  );
-}
-
-export default function Dashboard({ items, audit, masterPassword, onBack, onEdit, isLoading = false }: DashboardProps) {
+export default function Dashboard({ items, audit, decryptedPasswords, onBack, onEdit, isLoading = false }: DashboardProps) {
   const logins = useMemo(() => items.filter(i => i.category === 'Login' && !i.deletedAt), [items]);
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
-  const [analyzedLogins, setAnalyzedLogins] = useState<AnalyzedLogin[]>([]);
-  const [isDecrypting, setIsDecrypting] = useState(false);
-  const [decryptProgress, setDecryptProgress] = useState(0);
+  const [expandedStrength, setExpandedStrength] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!masterPassword || logins.length === 0) {
-      setAnalyzedLogins([]);
-      setIsDecrypting(false);
-      setDecryptProgress(0);
-      return;
-    }
-
-    setIsDecrypting(true);
-    setDecryptProgress(0);
-    const analyze = async () => {
-      const results: AnalyzedLogin[] = [];
-      for (let i = 0; i < logins.length; i++) {
-        const item = logins[i];
-        try {
-          const rawPassword = await decrypt(item.encryptedPassword, masterPassword);
-          if (!rawPassword) {
-            results.push({ item, password: '', weakness: { time: 'Unknown', score: 0 }, isOld: false, hasTotp: false });
-          } else {
-            const weakness = calculateTimeToCrack(rawPassword);
-            const isOld = Date.now() - item.updatedAt > 90 * 24 * 60 * 60 * 1000;
-            const hasTotp = !!item.encryptedTotpSecret;
-            results.push({ item, password: rawPassword, weakness, isOld, hasTotp });
-          }
-        } catch {
-          results.push({ item, password: '', weakness: { time: 'Unknown', score: 0 }, isOld: false, hasTotp: false });
-        }
-        setDecryptProgress(Math.round(((i + 1) / logins.length) * 100));
-      }
-      setAnalyzedLogins(results);
-      setIsDecrypting(false);
-    };
-    analyze();
-  }, [logins, masterPassword]);
+  const analyzedLogins: AnalyzedLogin[] = useMemo(() => {
+    return logins.map(item => {
+      const password = decryptedPasswords[item.id] || '';
+      const weakness = password ? calculateTimeToCrack(password) : { time: 'Unknown', score: 0 };
+      const isOld = Date.now() - item.updatedAt > 90 * 24 * 60 * 60 * 1000;
+      const hasTotp = !!item.encryptedTotpSecret;
+      return { item, password, weakness, isOld, hasTotp };
+    });
+  }, [logins, decryptedPasswords]);
 
   const weakPasswords = analyzedLogins.filter(a => a.weakness.score <= 2 && a.password);
   const oldPasswords = analyzedLogins.filter(a => a.isOld);
@@ -112,7 +74,6 @@ export default function Dashboard({ items, audit, masterPassword, onBack, onEdit
       case 'Pwned / Breached':
         return analyzedLogins.filter(a => audit.breachedIds.includes(a.item.id));
       case 'Reused Passwords':
-        if (!masterPassword) return [];
         const passCounts: Record<string, string[]> = {};
         analyzedLogins.forEach(a => {
           if (a.password) {
@@ -140,299 +101,302 @@ export default function Dashboard({ items, audit, masterPassword, onBack, onEdit
     return `${Math.floor(days / 365)}y ago`;
   };
 
-  const hasData = analyzedLogins.length > 0 || !isDecrypting;
+  const LoadingSkeleton = () => (
+    <div className="space-y-3">
+      <div className="bg-zinc-900/30 rounded-2xl p-4 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="w-20 h-3 bg-zinc-800 rounded" />
+            <div className="w-24 h-8 bg-zinc-800 rounded" />
+          </div>
+          <div className="w-14 h-14 bg-zinc-800 rounded-full" />
+        </div>
+      </div>
+      <div className="bg-zinc-900/30 rounded-2xl p-3 animate-pulse">
+        <div className="flex justify-between mb-2">
+          <div className="w-32 h-3 bg-zinc-800 rounded" />
+          <div className="w-8 h-3 bg-zinc-800 rounded" />
+        </div>
+        <div className="h-1 bg-zinc-800 rounded-full" />
+      </div>
+      <div className="bg-zinc-900/30 rounded-2xl p-3 animate-pulse">
+        <div className="w-28 h-3 bg-zinc-800 rounded mb-2" />
+        <div className="h-2 bg-zinc-800 rounded-full" />
+      </div>
+    </div>
+  );
 
   return (
-    <div className="flex flex-col h-full flex-1 w-full bg-black no-scrollbar overflow-y-auto px-3 pt-3 pb-20">
+    <div className="flex flex-col h-full flex-1 w-full bg-black no-scrollbar overflow-y-auto px-4 pt-4 pb-20">
       <header className="flex items-center gap-3 mb-4">
         <button 
           onClick={onBack}
-          className="p-1.5 -ml-1.5 hover:bg-zinc-900 rounded-lg text-zinc-500 transition-colors"
+          className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-base font-semibold text-white tracking-tight">Security Audit</h2>
+        <h2 className="text-lg font-semibold text-white tracking-tight">Security Audit</h2>
       </header>
 
-      {logins.length === 0 && !isDecrypting && (
-        <div className="flex flex-col items-center justify-center py-16 space-y-3">
-          <div className="w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center border border-zinc-800">
-            <ShieldCheck className="w-5 h-5 text-zinc-600" />
+      {logins.length === 0 && !isLoading && (
+        <div className="flex flex-col items-center justify-center py-20 space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-zinc-900 flex items-center justify-center">
+            <ShieldCheck className="w-7 h-7 text-zinc-600" />
           </div>
-          <p className="text-sm text-zinc-500 font-medium">No logins to analyze</p>
+          <p className="text-sm text-zinc-400 font-medium">No logins to analyze</p>
           <p className="text-xs text-zinc-600 text-center max-w-[200px]">Add some login items to see your security audit</p>
         </div>
       )}
 
-      {(logins.length > 0 || isDecrypting) && (
-        <div className="space-y-3">
-        {/* Main Score Box */}
-        {isLoading ? (
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
-            <div className="space-y-2">
-              <SkeletonBox className="w-20 h-3" />
-              <SkeletonBox className="w-24 h-8" />
-            </div>
-            <SkeletonBox className="w-14 h-14 rounded-full" />
-          </div>
-        ) : (
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <p className="text-xs font-medium text-zinc-400">Health Score</p>
-              <div className="flex items-baseline gap-0.5">
-                <span className={`text-3xl font-bold tracking-tight ${audit.score > 80 ? 'text-green-500' : audit.score > 50 ? 'text-yellow-500' : 'text-red-500'}`}>{audit.score}</span>
-                <span className="text-zinc-500 text-sm font-medium">/100</span>
-              </div>
-            </div>
-            <div className="w-14 h-14 flex-shrink-0">
-               <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
-                  <circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" className="text-zinc-800" strokeWidth="4" />
-                  <motion.circle
-                    cx="32" cy="32" r="30" fill="none" stroke="currentColor"
-                    className={audit.score > 80 ? "text-green-500" : audit.score > 50 ? "text-yellow-500" : "text-red-500"}
-                    strokeWidth="4" strokeDasharray="188.5"
-                    initial={{ strokeDashoffset: 188.5 }}
-                    animate={{ strokeDashoffset: 188.5 * (1 - audit.score / 100) }}
-                    transition={{ duration: 1.5, ease: "easeOut" }} strokeLinecap="round"
-                  />
-                </svg>
-            </div>
-          </div>
-        )}
-
-        {/* Security Checklist */}
-        {isLoading ? (
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <SkeletonBox className="w-32 h-3" />
-              <SkeletonBox className="w-8 h-3" />
-            </div>
-            <SkeletonBar className="h-1 w-full" />
-            <div className="grid grid-cols-2 gap-1">
-              {[1,2,3,4,5,6].map(i => (
-                <div key={i} className="flex items-center gap-1.5 py-0.5">
-                  <SkeletonBox className="w-3 h-3 rounded-full" />
-                  <SkeletonBox className="w-20 h-3" />
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-zinc-400" />
-                <p className="text-xs font-semibold text-white">Security Checklist</p>
-              </div>
-              <span className="text-[10px] font-medium text-zinc-400">{checklistDone}/{checklistTotal}</span>
-            </div>
-            <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
-              <motion.div 
-                className="h-full bg-accent rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${(checklistDone / checklistTotal) * 100}%` }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-1">
-              {checklist.map((c, i) => (
-                <div key={i} className="flex items-center gap-1.5 py-0.5">
-                  {c.done ? (
-                    <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />
-                  ) : (
-                    <XCircle className="w-3 h-3 text-zinc-600 flex-shrink-0" />
-                  )}
-                  <span className={`text-[10px] ${c.done ? 'text-zinc-400' : 'text-zinc-500'}`}>{c.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Strength Distribution */}
-        {!hasData ? (
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <SkeletonBox className="w-4 h-4 rounded" />
-              <SkeletonBox className="w-28 h-3" />
-            </div>
-            <SkeletonBar className="h-2 w-full" />
-            <div className="flex justify-between">
-              <SkeletonBox className="w-12 h-3" />
-              <SkeletonBox className="w-12 h-3" />
-              <SkeletonBox className="w-12 h-3" />
-            </div>
-          </div>
-        ) : (
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <img src="/logo.svg" alt="Phantom" className="w-4 h-4" />
-              <p className="text-xs font-semibold text-white">Password Strength</p>
-            </div>
-            <div className="h-2 bg-zinc-800 rounded-full overflow-hidden flex">
-              {strengthDist.strong > 0 && (
-                <motion.div 
-                  className="h-full bg-green-500"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(strengthDist.strong / total) * 100}%` }}
-                  transition={{ duration: 0.8, delay: 0.2 }}
-                />
-              )}
-              {strengthDist.medium > 0 && (
-                <motion.div 
-                  className="h-full bg-yellow-500"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(strengthDist.medium / total) * 100}%` }}
-                  transition={{ duration: 0.8, delay: 0.3 }}
-                />
-              )}
-              {strengthDist.weak > 0 && (
-                <motion.div 
-                  className="h-full bg-red-500"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(strengthDist.weak / total) * 100}%` }}
-                  transition={{ duration: 0.8, delay: 0.4 }}
-                />
-              )}
-            </div>
-            <div className="flex justify-between text-[10px]">
-              <span className="text-green-500 font-medium">{strengthDist.strong} Strong</span>
-              <span className="text-yellow-500 font-medium">{strengthDist.medium} Medium</span>
-              <span className="text-red-500 font-medium">{strengthDist.weak} Weak</span>
-            </div>
-          </div>
-        )}
-
-        {/* 2FA Coverage */}
-        {!hasData ? (
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <SkeletonBox className="w-4 h-4 rounded" />
-                <SkeletonBox className="w-20 h-3" />
-              </div>
-              <SkeletonBox className="w-8 h-3" />
-            </div>
-            <SkeletonBar className="h-2 w-full" />
-          </div>
-        ) : (
-          <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Key className="w-3.5 h-3.5 text-zinc-400" />
-                <p className="text-xs font-semibold text-white">2FA Coverage</p>
-              </div>
-              <span className="text-[10px] font-medium text-zinc-400">{withTotp.length}/{logins.length}</span>
-            </div>
-            <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-              <motion.div 
-                className="h-full bg-accent rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${(withTotp.length / (logins.length || 1)) * 100}%` }}
-                transition={{ duration: 0.8, delay: 0.5 }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Security Alerts */}
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold text-white px-1">Security Alerts</h3>
-          
-          <div className="space-y-2">
-            {[
-              { label: 'Pwned / Breached', count: audit.breached, color: 'text-red-500', bg: 'bg-red-500/20 border-red-500/30' },
-              { label: 'Reused Passwords', count: audit.reused, color: 'text-orange-500', bg: 'bg-orange-500/10 border-orange-500/20' },
-              { label: 'Weak Passwords', count: weakPasswords.length, color: 'text-yellow-500', bg: 'bg-yellow-500/10 border-yellow-500/20' },
-              { label: 'Old Passwords (90+ days)', count: oldPasswords.length, color: 'text-zinc-400', bg: 'bg-zinc-800/50 border-zinc-700/50' },
-              { label: 'No 2FA Enabled', count: noTotp.length, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-            ].map((v, i) => (
-              <div key={i} className="space-y-1.5">
-                <button
-                  onClick={() => setExpandedIssue(expandedIssue === v.label ? null : v.label)}
-                  disabled={v.count === 0}
-                  className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all ${v.count > 0 ? v.bg + ' cursor-pointer' : 'opacity-40 cursor-default bg-zinc-900/20 border-transparent'}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className={`w-4 h-4 ${v.count > 0 ? v.color : 'text-zinc-600'}`} />
-                    <span className={`text-xs font-medium ${v.count > 0 ? 'text-zinc-200' : 'text-zinc-500'}`}>{v.label}</span>
+      {(logins.length > 0 || isLoading) && (
+        <div className="space-y-4">
+          {isLoading ? <LoadingSkeleton /> : (
+            <>
+              {/* Main Score */}
+              <div className="bg-zinc-900/30 rounded-2xl p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 mb-1">Health Score</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className={`text-4xl font-bold tracking-tight ${audit.score > 80 ? 'text-green-500' : audit.score > 50 ? 'text-yellow-500' : 'text-red-500'}`}>{audit.score}</span>
+                      <span className="text-zinc-600 text-sm">/100</span>
+                    </div>
                   </div>
-                  <span className={`text-xs font-bold ${v.count > 0 ? v.color : 'text-zinc-600'}`}>{v.count}</span>
-                </button>
+                  <div className="w-16 h-16 flex-shrink-0">
+                    <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
+                      <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" className="text-zinc-800" strokeWidth="4" />
+                      <motion.circle
+                        cx="32" cy="32" r="28" fill="none" stroke="currentColor"
+                        className={audit.score > 80 ? "text-green-500" : audit.score > 50 ? "text-yellow-500" : "text-red-500"}
+                        strokeWidth="4" strokeDasharray="175.9"
+                        initial={{ strokeDashoffset: 175.9 }}
+                        animate={{ strokeDashoffset: 175.9 * (1 - audit.score / 100) }}
+                        transition={{ duration: 1.5, ease: "easeOut" }} strokeLinecap="round"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Security Checklist */}
+              <div className="bg-zinc-900/30 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-zinc-500" />
+                    <p className="text-sm font-semibold text-white">Security Checklist</p>
+                  </div>
+                  <span className="text-xs font-medium text-zinc-500">{checklistDone}/{checklistTotal}</span>
+                </div>
+                <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden mb-3">
+                  <motion.div 
+                    className="h-full bg-accent rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(checklistDone / checklistTotal) * 100}%` }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {checklist.map((c, i) => (
+                    <div key={i} className="flex items-center gap-2 py-1">
+                      {c.done ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-zinc-700 flex-shrink-0" />
+                      )}
+                      <span className={`text-xs ${c.done ? 'text-zinc-400' : 'text-zinc-500'}`}>{c.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Strength Distribution */}
+              <div className="space-y-2">
+                <div className="bg-zinc-900/30 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <img src="/logo.svg" alt="Phantom" className="w-4 h-4" />
+                    <p className="text-sm font-semibold text-white">Password Strength</p>
+                  </div>
+                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden flex mb-3">
+                    {strengthDist.strong > 0 && (
+                      <motion.div 
+                        className="h-full bg-green-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(strengthDist.strong / total) * 100}%` }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                      />
+                    )}
+                    {strengthDist.medium > 0 && (
+                      <motion.div 
+                        className="h-full bg-yellow-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(strengthDist.medium / total) * 100}%` }}
+                        transition={{ duration: 0.8, delay: 0.3 }}
+                      />
+                    )}
+                    {strengthDist.weak > 0 && (
+                      <motion.div 
+                        className="h-full bg-red-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(strengthDist.weak / total) * 100}%` }}
+                        transition={{ duration: 0.8, delay: 0.4 }}
+                      />
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setExpandedStrength(expandedStrength === 'strong' ? null : 'strong')}
+                      className={`flex-1 text-center text-xs font-medium py-1.5 rounded-lg transition-colors ${expandedStrength === 'strong' ? 'bg-green-500/20 text-green-400' : 'text-green-500 hover:bg-zinc-800'}`}
+                    >
+                      {strengthDist.strong} Strong
+                    </button>
+                    <button
+                      onClick={() => setExpandedStrength(expandedStrength === 'medium' ? null : 'medium')}
+                      className={`flex-1 text-center text-xs font-medium py-1.5 rounded-lg transition-colors ${expandedStrength === 'medium' ? 'bg-yellow-500/20 text-yellow-400' : 'text-yellow-500 hover:bg-zinc-800'}`}
+                    >
+                      {strengthDist.medium} Medium
+                    </button>
+                    <button
+                      onClick={() => setExpandedStrength(expandedStrength === 'weak' ? null : 'weak')}
+                      className={`flex-1 text-center text-xs font-medium py-1.5 rounded-lg transition-colors ${expandedStrength === 'weak' ? 'bg-red-500/20 text-red-400' : 'text-red-500 hover:bg-zinc-800'}`}
+                    >
+                      {strengthDist.weak} Weak
+                    </button>
+                  </div>
+                </div>
 
                 <AnimatePresence>
-                  {expandedIssue === v.label && (
+                  {expandedStrength && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden bg-zinc-900/30 rounded-xl border border-zinc-800"
+                      className="overflow-hidden bg-zinc-900/30 rounded-2xl"
                     >
-                      <div className="p-1.5 space-y-1">
-                        {getProblematicItems(v.label).map((a: any) => {
-                          const item = a.item || a;
-                          const password = a.password || '';
-                          const weakness = a.weakness;
-                          const isOld = a.isOld;
-                          return (
+                      <div className="p-2 space-y-1">
+                        {analyzedLogins
+                          .filter(a => {
+                            if (expandedStrength === 'strong') return a.weakness.score >= 4;
+                            if (expandedStrength === 'medium') return a.weakness.score === 3;
+                            return a.weakness.score <= 2 && a.password;
+                          })
+                          .map((a) => (
                             <button 
-                              key={item.id} 
-                              onClick={() => onEdit(item)}
-                              className="w-full flex items-center justify-between p-2.5 rounded-lg hover:bg-zinc-800 transition-colors text-left"
+                              key={a.item.id} 
+                              onClick={() => onEdit(a.item)}
+                              className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-zinc-800/50 transition-colors text-left"
                             >
                               <div className="flex flex-col min-w-0 flex-1">
-                                <span className="text-xs font-medium text-zinc-300 truncate">{item.title}</span>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[10px] text-zinc-500 truncate">{item.username}</span>
-                                  {weakness && (
-                                    <span className={`text-[9px] font-medium ${weakness.score <= 1 ? 'text-red-500' : weakness.score <= 2 ? 'text-yellow-500' : 'text-green-500'}`}>
-                                      {weakness.time}
-                                    </span>
-                                  )}
-                                  {isOld && (
-                                    <span className="text-[9px] text-zinc-500 flex items-center gap-0.5">
-                                      <Clock className="w-2.5 h-2.5" />
-                                      {timeAgo(item.updatedAt)}
-                                    </span>
-                                  )}
-                                  {!a.hasTotp && v.label === 'No 2FA Enabled' && (
-                                    <span className="text-[9px] text-blue-400 font-medium">No 2FA</span>
-                                  )}
-                                </div>
+                                <span className="text-sm font-medium text-zinc-200 truncate">{a.item.title}</span>
+                                <span className="text-xs text-zinc-500 truncate">{a.item.username}</span>
                               </div>
-                              <span className="text-[10px] font-semibold text-white px-2 py-0.5 bg-zinc-800 rounded-full ml-2 flex-shrink-0">Fix</span>
+                              <span className={`text-xs font-medium ml-2 ${a.weakness.score >= 4 ? 'text-green-500' : a.weakness.score === 3 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                {a.weakness.time}
+                              </span>
                             </button>
-                          );
-                        })}
+                          ))}
                       </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
-            ))}
-          </div>
-        </div>
-        </div>
-      )}
 
-      {/* Decrypt progress indicator */}
-      {isDecrypting && logins.length > 0 && (
-        <div className="fixed bottom-20 left-4 right-4 z-40">
-          <div className="bg-zinc-900/90 backdrop-blur border border-zinc-800 rounded-xl px-4 py-3 flex items-center gap-3">
-            <div className="w-4 h-4 border-2 border-zinc-600 border-t-white rounded-full animate-spin flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-white">Analyzing passwords...</p>
-              <div className="h-1 bg-zinc-800 rounded-full mt-1.5 overflow-hidden">
-                <motion.div 
-                  className="h-full bg-accent rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${decryptProgress}%` }}
-                  transition={{ duration: 0.3 }}
-                />
+              {/* 2FA Coverage */}
+              <div className="bg-zinc-900/30 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Key className="w-4 h-4 text-zinc-500" />
+                    <p className="text-sm font-semibold text-white">2FA Coverage</p>
+                  </div>
+                  <span className="text-xs font-medium text-zinc-500">{withTotp.length}/{logins.length}</span>
+                </div>
+                <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <motion.div 
+                    className="h-full bg-accent rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(withTotp.length / (logins.length || 1)) * 100}%` }}
+                    transition={{ duration: 0.8, delay: 0.5 }}
+                  />
+                </div>
               </div>
-            </div>
-            <span className="text-xs font-medium text-zinc-400 flex-shrink-0">{decryptProgress}%</span>
-          </div>
+
+              {/* Security Alerts */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-white">Security Alerts</h3>
+                
+                <div className="space-y-2">
+                  {[
+                    { label: 'Pwned / Breached', count: audit.breached, color: 'text-red-500', bg: 'bg-red-500/10' },
+                    { label: 'Reused Passwords', count: audit.reused, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+                    { label: 'Weak Passwords', count: weakPasswords.length, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+                    { label: 'Old Passwords (90+ days)', count: oldPasswords.length, color: 'text-zinc-400', bg: 'bg-zinc-800/50' },
+                    { label: 'No 2FA Enabled', count: noTotp.length, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+                  ].map((v, i) => (
+                    <div key={i} className="space-y-1.5">
+                      <button
+                        onClick={() => setExpandedIssue(expandedIssue === v.label ? null : v.label)}
+                        disabled={v.count === 0}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${v.count > 0 ? v.bg + ' cursor-pointer' : 'opacity-40 cursor-default'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <AlertTriangle className={`w-4 h-4 ${v.count > 0 ? v.color : 'text-zinc-700'}`} />
+                          <span className={`text-sm font-medium ${v.count > 0 ? 'text-zinc-200' : 'text-zinc-500'}`}>{v.label}</span>
+                        </div>
+                        <span className={`text-sm font-semibold ${v.count > 0 ? v.color : 'text-zinc-700'}`}>{v.count}</span>
+                      </button>
+
+                      <AnimatePresence>
+                        {expandedIssue === v.label && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden bg-zinc-900/30 rounded-2xl"
+                          >
+                            <div className="p-2 space-y-1">
+                              {getProblematicItems(v.label).map((a) => {
+                                const item = a.item;
+                                const weakness = a.weakness;
+                                const isOld = a.isOld;
+                                return (
+                                  <button 
+                                    key={item.id} 
+                                    onClick={() => onEdit(item)}
+                                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-zinc-800/50 transition-colors text-left"
+                                  >
+                                    <div className="flex flex-col min-w-0 flex-1">
+                                      <span className="text-sm font-medium text-zinc-200 truncate">{item.title}</span>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-xs text-zinc-500 truncate">{item.username}</span>
+                                        {weakness && (
+                                          <span className={`text-[10px] font-medium ${weakness.score <= 1 ? 'text-red-500' : weakness.score <= 2 ? 'text-yellow-500' : 'text-green-500'}`}>
+                                            {weakness.time}
+                                          </span>
+                                        )}
+                                        {isOld && (
+                                          <span className="text-[10px] text-zinc-500 flex items-center gap-0.5">
+                                            <Clock className="w-3 h-3" />
+                                            {timeAgo(item.updatedAt)}
+                                          </span>
+                                        )}
+                                        {!a.hasTotp && v.label === 'No 2FA Enabled' && (
+                                          <span className="text-[10px] text-blue-400 font-medium">No 2FA</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="text-xs font-medium text-zinc-400 ml-2">Fix →</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
