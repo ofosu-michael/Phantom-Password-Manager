@@ -9,6 +9,10 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/Vite-6.4-646CFF?logo=vite&logoColor=white)
+![CI](https://img.shields.io/github/actions/workflow/status/ofosu-michael/Phantom-Password-Manager/ci.yml?branch=main&label=CI&logo=github)
+[![Code of Conduct](https://img.shields.io/badge/Code%20of%20Conduct-v2.1-4baaaa)](CODE_OF_CONDUCT.md)
+[![Contributing](https://img.shields.io/badge/Contributing-guide-2ea44f)](CONTRIBUTING.md)
+[![Security](https://img.shields.io/badge/Security-policy-e0162d)](SECURITY.md)
 
 A secure, open-source password manager with a modern Phantom-inspired design.
 
@@ -92,7 +96,7 @@ npm run preview
 
 ## Contributing
 
-Contributions are welcome! Whether it's a bug fix, feature addition, or documentation improvement, feel free to open a pull request.
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before opening a pull request.
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature`
@@ -108,4 +112,4 @@ Contributions are welcome! Whether it's a bug fix, feature addition, or document
 
 ## License
 
-Apache-2.0
+Apache-2.0 — see [LICENSE](LICENSE) for details.
