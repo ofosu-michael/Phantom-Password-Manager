@@ -1,5 +1,6 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { DashboardCircleIcon, Settings01Icon } from "@hugeicons/core-free-icons";
 import React from "react";
-import { LayoutDashboard, Settings } from "lucide-react";
 import { View } from "../types";
 
 interface BottomNavProps {
@@ -21,14 +22,14 @@ export default function BottomNav({ view, onViewChange }: BottomNavProps) {
         onClick={() => onViewChange("dashboard")}
         className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "dashboard" ? "text-white" : "hover:text-zinc-300"}`}
       >
-        <LayoutDashboard className="w-5 h-5" />
+        <HugeiconsIcon icon={DashboardCircleIcon} className="w-5 h-5" />
         <span>Audit</span>
       </button>
       <button
         onClick={() => onViewChange("settings")}
         className={`transition-colors flex flex-col items-center justify-center gap-1 ${view === "settings" ? "text-white" : "hover:text-zinc-300"}`}
       >
-        <Settings className="w-5 h-5" />
+        <HugeiconsIcon icon={Settings01Icon} className="w-5 h-5" />
         <span>Settings</span>
       </button>
     </div>

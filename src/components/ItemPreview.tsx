@@ -1,30 +1,56 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowDown01Icon, ArrowLeft01Icon, ArrowUp01Icon, Clock01Icon, Copy01Icon, CreditCardIcon, Delete02Icon, FileAttachmentIcon, GlobeIcon, Key01Icon, LockIcon, PencilIcon, RotateLeft01Icon, StarIcon, Tag01Icon, Tick01Icon, UserIcon, ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons";
 import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  ArrowLeft,
-  Pencil,
-  Trash2,
-  Key,
-  Globe,
-  User,
-  Lock,
-  Eye,
-  EyeOff,
-  CreditCard,
-  FileText,
-  Copy,
-  Check,
-  Tag,
-  Clock,
-  ChevronDown,
-  ChevronUp,
-  RotateCcw,
-  Star,
-} from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { VaultItem, VaultFolder } from "../types";
 import { decrypt } from "../lib/crypto";
+
+const CopyButton = ({ field, text, copiedField, onCopy }: {
+  field: string;
+  text: string;
+  copiedField: string | null;
+  onCopy: (text: string, field: string) => void;
+}) => (
+  <button
+    type="button"
+    onClick={() => onCopy(text, field)}
+    className="p-2 text-zinc-500 hover:text-white transition-colors"
+  >
+    {copiedField === field ? (
+      <HugeiconsIcon icon={Tick01Icon} className="w-4 h-4 text-green-500" />
+    ) : (
+      <HugeiconsIcon icon={Copy01Icon} className="w-4 h-4" />
+    )}
+  </button>
+);
+
+const FieldCard = ({ icon, label, value, isSecret, isMonospace, actions, showPassword, copiedField, onCopy }: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  isSecret?: boolean;
+  isMonospace?: boolean;
+  actions?: React.ReactNode;
+  showPassword: boolean;
+  copiedField: string | null;
+  onCopy: (text: string, field: string) => void;
+}) => (
+  <div className="flex items-center gap-3 py-3">
+    <div className="text-zinc-500 flex-shrink-0">{icon}</div>
+    <div className="flex-1 min-w-0">
+      <p className="text-[11px] text-zinc-500 font-medium">{label}</p>
+      <p className={`text-sm text-white mt-0.5 truncate ${isMonospace ? "font-mono" : ""}`}>
+        {isSecret && !showPassword ? (value ? "••••••••••••" : "—") : (value || "—")}
+      </p>
+    </div>
+    <div className="flex items-center gap-0.5 flex-shrink-0">
+      {actions}
+      <CopyButton field={label} text={isSecret && !showPassword ? "" : value} copiedField={copiedField} onCopy={onCopy} />
+    </div>
+  </div>
+);
 
 interface ItemPreviewProps {
   item: VaultItem;
@@ -160,7 +186,7 @@ export default function ItemPreview({
     return () => clearInterval(interval);
   }, [totpSecret]);
 
-  const copyToClipboard = (text: string, label: string) => {
+  const handleCopy = (text: string, label: string) => {
     if (text) {
       navigator.clipboard.writeText(text);
       setCopiedField(label);
@@ -185,43 +211,6 @@ export default function ItemPreview({
 
   const folderName = folders.find((f) => f.id === item.folderId)?.name;
 
-  const CopyButton = ({ field, text }: { field: string; text: string }) => (
-    <button
-      type="button"
-      onClick={() => copyToClipboard(text, field)}
-      className="p-2 text-zinc-500 hover:text-white transition-colors"
-    >
-      {copiedField === field ? (
-        <Check className="w-4 h-4 text-green-500" />
-      ) : (
-        <Copy className="w-4 h-4" />
-      )}
-    </button>
-  );
-
-  const FieldCard = ({ icon, label, value, isSecret, isMonospace, actions }: {
-    icon: React.ReactNode;
-    label: string;
-    value: string;
-    isSecret?: boolean;
-    isMonospace?: boolean;
-    actions?: React.ReactNode;
-  }) => (
-    <div className="flex items-center gap-3 py-3">
-      <div className="text-zinc-500 flex-shrink-0">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-zinc-500 font-medium">{label}</p>
-        <p className={`text-sm text-white mt-0.5 truncate ${isMonospace ? "font-mono" : ""}`}>
-          {isSecret && !showPassword ? (value ? "••••••••••••" : "—") : (value || "—")}
-        </p>
-      </div>
-      <div className="flex items-center gap-0.5 flex-shrink-0">
-        {actions}
-        <CopyButton field={label} text={isSecret && !showPassword ? "" : value} />
-      </div>
-    </div>
-  );
-
   return (
     <motion.div
       initial={{ x: 360 }}
@@ -236,7 +225,7 @@ export default function ItemPreview({
           onClick={onBack}
           className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white transition-colors"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <HugeiconsIcon icon={ArrowLeft01Icon} className="w-5 h-5" />
         </button>
         <h2 className="font-semibold text-white tracking-tight text-sm truncate max-w-[160px]">
           {item.title}
@@ -245,15 +234,13 @@ export default function ItemPreview({
           onClick={() => onToggleFavorite?.(item.id)}
           className={`p-2 hover:bg-zinc-900 rounded-xl transition-colors ${item.isFavorite ? "text-yellow-500" : "text-zinc-600 hover:text-zinc-400"}`}
         >
-          <svg className={`w-5 h-5 ${item.isFavorite ? "fill-current" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-          </svg>
+          <HugeiconsIcon icon={StarIcon} className={`w-5 h-5 ${item.isFavorite ? "fill-current" : ""}`} />
         </button>
         <button
           onClick={onEdit}
           className="p-2 -mr-2 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white transition-colors"
         >
-          <Pencil className="w-5 h-5" />
+          <HugeiconsIcon icon={PencilIcon} className="w-5 h-5" />
         </button>
       </header>
 
@@ -289,10 +276,10 @@ export default function ItemPreview({
               </div>
             </div>
             <button
-              onClick={() => copyToClipboard(totpCode, "TOTP")}
+              onClick={() => handleCopy(totpCode, "TOTP")}
               className="mt-3 text-xs text-zinc-400 hover:text-white transition-colors flex items-center gap-1 mx-auto"
             >
-              {copiedField === "TOTP" ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+              {copiedField === "TOTP" ? <HugeiconsIcon icon={Tick01Icon} className="w-3 h-3 text-green-500" /> : <HugeiconsIcon icon={Copy01Icon} className="w-3 h-3" />}
               {copiedField === "TOTP" ? "Copied" : "Tap to copy"}
             </button>
           </div>
@@ -302,12 +289,15 @@ export default function ItemPreview({
         {item.category === "Login" && (
           <div className="bg-zinc-900/30 rounded-2xl px-4 divide-y divide-zinc-800/50">
             <FieldCard
-              icon={<User className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={UserIcon} className="w-4 h-4" />}
               label="Username"
               value={item.username}
+              showPassword={showPassword}
+              copiedField={copiedField}
+              onCopy={handleCopy}
             />
             <FieldCard
-              icon={<Lock className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={LockIcon} className="w-4 h-4" />}
               label="Password"
               value={password}
               isSecret
@@ -317,15 +307,21 @@ export default function ItemPreview({
                   onClick={() => setShowPassword(!showPassword)}
                   className="p-2 text-zinc-500 hover:text-white transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <HugeiconsIcon icon={ViewOffIcon} className="w-4 h-4" /> : <HugeiconsIcon icon={ViewIcon} className="w-4 h-4" />}
                 </button>
               }
+              showPassword={showPassword}
+              copiedField={copiedField}
+              onCopy={handleCopy}
             />
             {item.website && (
               <FieldCard
-                icon={<Globe className="w-4 h-4" />}
+                icon={<HugeiconsIcon icon={GlobeIcon} className="w-4 h-4" />}
                 label="Website"
                 value={item.website}
+                showPassword={showPassword}
+                copiedField={copiedField}
+                onCopy={handleCopy}
               />
             )}
           </div>
@@ -335,10 +331,13 @@ export default function ItemPreview({
         {item.category === "Card" && (
           <div className="bg-zinc-900/30 rounded-2xl px-4 divide-y divide-zinc-800/50">
             <FieldCard
-              icon={<CreditCard className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={CreditCardIcon} className="w-4 h-4" />}
               label="Card Number"
               value={item.cardDetails?.number || ""}
               isMonospace
+              showPassword={showPassword}
+              copiedField={copiedField}
+              onCopy={handleCopy}
             />
             <div className="flex items-center gap-3 py-3">
               <div className="flex-1">
@@ -350,8 +349,8 @@ export default function ItemPreview({
                 <p className="text-sm font-mono text-white mt-0.5">{item.cardDetails?.cvv || "—"}</p>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0">
-                <CopyButton field="cardExpiry" text={item.cardDetails?.expiry || ""} />
-                <CopyButton field="cardCvv" text={item.cardDetails?.cvv || ""} />
+                <CopyButton field="cardExpiry" text={item.cardDetails?.expiry || ""} copiedField={copiedField} onCopy={handleCopy} />
+                <CopyButton field="cardCvv" text={item.cardDetails?.cvv || ""} copiedField={copiedField} onCopy={handleCopy} />
               </div>
             </div>
           </div>
@@ -361,7 +360,7 @@ export default function ItemPreview({
         {item.category === "Note" && (
           <div className="bg-zinc-900/30 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <FileText className="w-4 h-4 text-zinc-500" />
+              <HugeiconsIcon icon={FileAttachmentIcon} className="w-4 h-4 text-zinc-500" />
               <p className="text-[11px] text-zinc-500 font-medium">Content</p>
             </div>
             <div
@@ -387,15 +386,21 @@ export default function ItemPreview({
               </div>
             </div>
             <FieldCard
-              icon={<Key className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={Key01Icon} className="w-4 h-4" />}
               label="ID Number"
               value={item.identityDetails?.idNumber || ""}
               isMonospace
+              showPassword={showPassword}
+              copiedField={copiedField}
+              onCopy={handleCopy}
             />
             <FieldCard
-              icon={<Clock className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={Clock01Icon} className="w-4 h-4" />}
               label="Date of Birth"
               value={item.identityDetails?.dob || ""}
+              showPassword={showPassword}
+              copiedField={copiedField}
+              onCopy={handleCopy}
             />
             <div className="py-3">
               <p className="text-[11px] text-zinc-500 font-medium">Address</p>
@@ -430,10 +435,10 @@ export default function ItemPreview({
                       }}
                       className="p-2 text-zinc-500 hover:text-white transition-colors"
                     >
-                      {field._show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {field._show ? <HugeiconsIcon icon={ViewOffIcon} className="w-4 h-4" /> : <HugeiconsIcon icon={ViewIcon} className="w-4 h-4" />}
                     </button>
                   )}
-                  <CopyButton field={field.id} text={field.value} />
+                  <CopyButton field={field.id} text={field.value} copiedField={copiedField} onCopy={handleCopy} />
                 </div>
               </div>
             ))}
@@ -443,7 +448,7 @@ export default function ItemPreview({
         {/* Tags */}
         {item.tags && item.tags.length > 0 && (
           <div className="flex items-center gap-2 px-1">
-            <Tag className="w-3.5 h-3.5 text-zinc-600" />
+            <HugeiconsIcon icon={Tag01Icon} className="w-3.5 h-3.5 text-zinc-600" />
             <div className="flex flex-wrap gap-1.5">
               {item.tags.map((tag) => (
                 <span key={tag} className="px-2 py-0.5 rounded-full bg-zinc-900 text-[11px] font-medium text-zinc-400">
@@ -457,7 +462,7 @@ export default function ItemPreview({
         {/* Metadata */}
         <div className="flex items-center gap-3 text-[11px] text-zinc-600 px-1">
           <div className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
+            <HugeiconsIcon icon={Clock01Icon} className="w-3 h-3" />
             <span>{timeAgo(item.updatedAt)}</span>
           </div>
           {folderName && <span>· {folderName}</span>}
@@ -472,11 +477,11 @@ export default function ItemPreview({
               className="w-full flex items-center justify-between p-4 hover:bg-zinc-800/30 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-zinc-500" />
+                <HugeiconsIcon icon={Clock01Icon} className="w-4 h-4 text-zinc-500" />
                 <p className="text-sm font-medium text-white">Password History</p>
                 <span className="text-[11px] text-zinc-500">({decryptedHistory.length})</span>
               </div>
-              {showHistory ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
+              {showHistory ? <HugeiconsIcon icon={ArrowUp01Icon} className="w-4 h-4 text-zinc-500" /> : <HugeiconsIcon icon={ArrowDown01Icon} className="w-4 h-4 text-zinc-500" />}
             </button>
             <AnimatePresence>
               {showHistory && (
@@ -502,7 +507,7 @@ export default function ItemPreview({
                             onClick={() => setShowHistoryEntry(showHistoryEntry === `hist-${idx}` ? null : `hist-${idx}`)}
                             className="p-2 text-zinc-500 hover:text-white transition-colors"
                           >
-                            {showHistoryEntry === `hist-${idx}` ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            {showHistoryEntry === `hist-${idx}` ? <HugeiconsIcon icon={ViewOffIcon} className="w-4 h-4" /> : <HugeiconsIcon icon={ViewIcon} className="w-4 h-4" />}
                           </button>
                           <button
                             type="button"
@@ -515,7 +520,7 @@ export default function ItemPreview({
                             }}
                             className="p-2 text-zinc-500 hover:text-white transition-colors"
                           >
-                            <Copy className="w-4 h-4" />
+                            <HugeiconsIcon icon={Copy01Icon} className="w-4 h-4" />
                           </button>
                           {onRestorePassword && (
                             <button
@@ -523,7 +528,7 @@ export default function ItemPreview({
                               onClick={() => onRestorePassword(item.id, entry.password)}
                               className="p-2 text-zinc-500 hover:text-white transition-colors"
                             >
-                              <RotateCcw className="w-4 h-4" />
+                              <HugeiconsIcon icon={RotateLeft01Icon} className="w-4 h-4" />
                             </button>
                           )}
                         </div>
@@ -588,7 +593,7 @@ export default function ItemPreview({
             >
               <div className="flex flex-col items-center text-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
-                  <Trash2 className="w-6 h-6 text-red-500" />
+                  <HugeiconsIcon icon={Delete02Icon} className="w-6 h-6 text-red-500" />
                 </div>
                 <div className="space-y-1.5">
                   <h3 className="text-base font-semibold text-white">Permanently Delete?</h3>

@@ -1,6 +1,7 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Alert01Icon, Cancel01Icon, CheckmarkCircle01Icon, Upload01Icon } from "@hugeicons/core-free-icons";
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Upload, AlertTriangle, X, CheckCircle2 } from "lucide-react";
 import { decrypt, decryptLegacy } from "../lib/crypto";
 
 interface ImportVaultModalProps {
@@ -121,7 +122,7 @@ export default function ImportVaultModal({
               onClick={handleClose}
               className="p-1 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-white transition-colors"
             >
-              <X className="w-4 h-4" />
+              <HugeiconsIcon icon={Cancel01Icon} className="w-4 h-4" />
             </button>
           </div>
 
@@ -130,7 +131,7 @@ export default function ImportVaultModal({
             {success ? (
               <div className="flex flex-col items-center py-6 space-y-3">
                 <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6 text-green-500" />
+                  <HugeiconsIcon icon={CheckmarkCircle01Icon} className="w-6 h-6 text-green-500" />
                 </div>
                 <p className="text-sm font-medium text-white">Vault imported!</p>
                 <p className="text-xs text-zinc-400 text-center">
@@ -140,7 +141,7 @@ export default function ImportVaultModal({
             ) : (
               <>
                 <div className="flex items-start gap-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl p-3">
-                  <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                  <HugeiconsIcon icon={Alert01Icon} className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-zinc-400 leading-relaxed">
                     Select a <span className="text-white font-medium">.pv</span> backup file and enter the password used to create it. Your data will be re-encrypted with your new master password.
                   </p>
@@ -152,7 +153,7 @@ export default function ImportVaultModal({
                     Backup File
                   </label>
                   <label className="flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-zinc-700 rounded-xl hover:border-zinc-600 hover:bg-zinc-800/50 transition-colors cursor-pointer">
-                    <Upload className="w-4 h-4 text-zinc-500" />
+                    <HugeiconsIcon icon={Upload01Icon} className="w-4 h-4 text-zinc-500" />
                     <span className="text-xs text-zinc-400">
                       {file ? file.name : "Choose .pv file"}
                     </span>

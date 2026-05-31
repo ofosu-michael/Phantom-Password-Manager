@@ -1,19 +1,7 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Alert01Icon, ArrowLeft01Icon, Cancel01Icon, Delete02Icon, Download01Icon, FileAttachmentIcon, Key02Icon, LockIcon, Tick01Icon, Upload01Icon, ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons";
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  ArrowLeft,
-  Lock,
-  Download,
-  Upload,
-  Trash2,
-  FileText,
-  AlertTriangle,
-  KeyRound,
-  Eye,
-  EyeOff,
-  Check,
-  X,
-} from "lucide-react";
 import Papa from "papaparse";
 import zxcvbn from "zxcvbn";
 import { VaultItem, VaultFolder } from "../types";
@@ -256,7 +244,7 @@ export default function Settings({
           onClick={onBack}
           className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white transition-colors"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <HugeiconsIcon icon={ArrowLeft01Icon} className="w-5 h-5" />
         </button>
         <h2 className="text-lg font-semibold text-white tracking-tight">
           Settings
@@ -289,14 +277,14 @@ export default function Settings({
               onClick={onLock}
               className="w-full flex items-center justify-center gap-2 p-4 text-sm font-medium text-white hover:bg-zinc-800/50 transition-colors"
             >
-              <Lock className="w-4 h-4" />
+              <HugeiconsIcon icon={LockIcon} className="w-4 h-4" />
               Lock Vault Now
             </button>
             <button
               onClick={() => setShowChangePassword(true)}
               className="w-full flex items-center justify-center gap-2 p-4 text-sm font-medium text-white hover:bg-zinc-800/50 transition-colors"
             >
-              <KeyRound className="w-4 h-4" />
+              <HugeiconsIcon icon={Key02Icon} className="w-4 h-4" />
               Change Master Password
             </button>
           </div>
@@ -312,13 +300,13 @@ export default function Settings({
                   <p className="text-sm font-medium text-white">Import / Export</p>
                   <p className="text-xs text-zinc-500 mt-0.5">CSV from any password manager</p>
                 </div>
-                <FileText className="w-5 h-5 text-zinc-600" />
+                <HugeiconsIcon icon={FileAttachmentIcon} className="w-5 h-5 text-zinc-600" />
               </div>
                <div className="flex gap-2">
                 <label className="flex-1">
                   <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
                   <div className="w-full py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
-                    <Upload className="w-3.5 h-3.5" />
+                    <HugeiconsIcon icon={Upload01Icon} className="w-3.5 h-3.5" />
                     Import CSV
                   </div>
                 </label>
@@ -326,7 +314,7 @@ export default function Settings({
                   onClick={() => setShowExportWarning(true)}
                   className="flex-1 py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <HugeiconsIcon icon={Download01Icon} className="w-3.5 h-3.5" />
                   Export CSV
                 </button>
               </div>
@@ -343,7 +331,7 @@ export default function Settings({
                 <label className="flex-1">
                   <input type="file" accept=".pv" onChange={handleRestore} className="hidden" />
                   <div className="w-full py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
-                    <Upload className="w-3.5 h-3.5" />
+                    <HugeiconsIcon icon={Upload01Icon} className="w-3.5 h-3.5" />
                     Restore
                   </div>
                 </label>
@@ -351,7 +339,7 @@ export default function Settings({
                   onClick={handleBackup}
                   className="flex-1 py-2.5 bg-zinc-800 text-white text-xs font-medium rounded-xl hover:bg-zinc-700 transition-colors flex items-center justify-center gap-1.5"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <HugeiconsIcon icon={Download01Icon} className="w-3.5 h-3.5" />
                   Backup
                 </button>
               </div>
@@ -365,7 +353,7 @@ export default function Settings({
             onClick={() => setShowConfirmWipe(true)}
             className="w-full py-3 rounded-xl text-red-400 font-medium hover:bg-red-500/10 transition-colors text-sm flex items-center justify-center gap-2"
           >
-            <Trash2 className="w-4 h-4" />
+            <HugeiconsIcon icon={Delete02Icon} className="w-4 h-4" />
             Wipe Vault Storage
           </button>
         </div>
@@ -390,7 +378,7 @@ export default function Settings({
             >
               <div className="flex flex-col items-center text-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-yellow-500" />
+                  <HugeiconsIcon icon={Alert01Icon} className="w-6 h-6 text-yellow-500" />
                 </div>
                 <div className="space-y-1.5">
                   <h3 className="text-base font-semibold text-white">Export Warning</h3>
@@ -447,7 +435,7 @@ export default function Settings({
             >
               <div className="flex flex-col items-center text-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-red-500" />
+                  <HugeiconsIcon icon={Alert01Icon} className="w-6 h-6 text-red-500" />
                 </div>
                 <div className="space-y-1.5">
                   <h3 className="text-base font-semibold text-white">Wipe Vault?</h3>
@@ -500,7 +488,7 @@ export default function Settings({
                   onClick={() => { setShowChangePassword(false); setCurrentPassword(""); setNewPassword(""); setConfirmNewPassword(""); }}
                   className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors"
                 >
-                  <X className="w-4 h-4 text-zinc-400" />
+                  <HugeiconsIcon icon={Cancel01Icon} className="w-4 h-4 text-zinc-400" />
                 </button>
               </div>
 
@@ -520,7 +508,7 @@ export default function Settings({
                       onClick={() => setShowCurrentPw(!showCurrentPw)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
                     >
-                      {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showCurrentPw ? <HugeiconsIcon icon={ViewOffIcon} className="w-4 h-4" /> : <HugeiconsIcon icon={ViewIcon} className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
@@ -540,7 +528,7 @@ export default function Settings({
                       onClick={() => setShowNewPw(!showNewPw)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
                     >
-                      {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showNewPw ? <HugeiconsIcon icon={ViewOffIcon} className="w-4 h-4" /> : <HugeiconsIcon icon={ViewIcon} className="w-4 h-4" />}
                     </button>
                   </div>
                   {newPassword && (
@@ -591,10 +579,10 @@ export default function Settings({
                       onClick={() => setShowConfirmPw(!showConfirmPw)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
                     >
-                      {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showConfirmPw ? <HugeiconsIcon icon={ViewOffIcon} className="w-4 h-4" /> : <HugeiconsIcon icon={ViewIcon} className="w-4 h-4" />}
                     </button>
                     {confirmNewPassword && confirmNewPassword === newPassword && (
-                      <Check className="absolute right-10 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                      <HugeiconsIcon icon={Tick01Icon} className="absolute right-10 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
                     )}
                   </div>
                 </div>

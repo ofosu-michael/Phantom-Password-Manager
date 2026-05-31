@@ -1,22 +1,7 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowLeft01Icon, Copy01Icon, DashboardCircleIcon, Download01Icon, Key01Icon, LockIcon, Refresh01Icon, Settings01Icon, SparklesIcon, Upload01Icon } from "@hugeicons/core-free-icons";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  ArrowLeft,
-  Lock,
-  Download,
-  Upload,
-  Key,
-  Settings,
-  Sparkles,
-  Copy,
-  RefreshCcw,
-  LayoutDashboard,
-} from "lucide-react";
 import {
   encrypt,
   decrypt,
@@ -1130,7 +1115,7 @@ export default function App() {
               }`}
             >
               {toast.type === "error" ? (
-                <Settings className="w-5 h-5 text-red-500" />
+                <HugeiconsIcon icon={Settings01Icon} className="w-5 h-5 text-red-500" />
               ) : (
                 <img src="/logo.svg" alt="Phantom" className="w-6 h-6" />
               )}

@@ -18,6 +18,8 @@
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
+    "@hugeicons/core-free-icons": "^4.2.0",
+    "@hugeicons/react": "^1.1.6",
     "@tailwindcss/vite": "^4.1.14",
     "@types/crypto-js": "^4.2.2",
     "@vitejs/plugin-react": "^5.0.4",
@@ -27,7 +29,6 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "framer-motion": "^12.38.0",
-    "lucide-react": "^0.546.0",
     "marked": "^18.0.3",
     "motion": "^12.23.24",
     "otpauth": "^9.5.1",

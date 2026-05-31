@@ -1,22 +1,7 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon, ArrowLeft01Icon, Cancel01Icon, Copy01Icon, CreditCardIcon, Delete02Icon, FileAttachmentIcon, FloppyDiskIcon, GlobeIcon, Key01Icon, LockIcon, SparklesIcon, StarIcon, UserIcon, ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons";
 import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import {
-  ArrowLeft,
-  Save,
-  Trash2,
-  Key,
-  Globe,
-  User,
-  Lock,
-  Eye,
-  EyeOff,
-  Sparkles,
-  CreditCard,
-  FileText,
-  Copy,
-  Plus,
-  X,
-} from "lucide-react";
 import { VaultItem, VaultFolder } from "../types";
 import { generateRandomPassword, decrypt, encrypt } from "../lib/crypto";
 
@@ -31,6 +16,57 @@ interface AddVaultItemProps {
   decryptedPassword?: string;
   onShowToast: (text: string, type?: "success" | "error" | "info") => void;
 }
+
+const copyToClipboard = (text: string, label: string, onShowToast: (text: string, type?: "success" | "error" | "info") => void) => {
+  if (text) {
+    navigator.clipboard.writeText(text);
+    onShowToast(`${label} copied`, "success");
+    setTimeout(() => {
+      navigator.clipboard.writeText("");
+    }, 30000);
+  }
+};
+
+const InputField = ({ icon, label, value, onChange, type = "text", placeholder, showCopy, showPasswordToggle, isMonospace, onShowToast, showPassword, setShowPassword }: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  type?: string;
+  placeholder?: string;
+  showCopy?: boolean;
+  showPasswordToggle?: boolean;
+  isMonospace?: boolean;
+  onShowToast?: (text: string, type?: "success" | "error" | "info") => void;
+  showPassword?: boolean;
+  setShowPassword?: (val: boolean) => void;
+}) => (
+  <div className="flex items-center gap-3 py-3">
+    <div className="text-zinc-500 flex-shrink-0">{icon}</div>
+    <div className="flex-1 min-w-0">
+      <p className="text-[11px] text-zinc-500 font-medium">{label}</p>
+      <input
+        type={showPasswordToggle && showPassword ? "text" : type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`w-full bg-transparent border-none py-0.5 outline-none text-white text-sm placeholder:text-zinc-600 ${isMonospace ? "font-mono" : ""}`}
+      />
+    </div>
+    <div className="flex items-center gap-0.5 flex-shrink-0">
+      {showCopy && value && (
+        <button type="button" onClick={() => copyToClipboard(value, label, onShowToast!)} className="p-2 text-zinc-500 hover:text-white transition-colors">
+          <HugeiconsIcon icon={Copy01Icon} className="w-4 h-4" />
+        </button>
+      )}
+      {showPasswordToggle && (
+        <button type="button" onClick={() => setShowPassword?.(!showPassword)} className="p-2 text-zinc-500 hover:text-white transition-colors">
+          {showPassword ? <HugeiconsIcon icon={ViewOffIcon} className="w-4 h-4" /> : <HugeiconsIcon icon={ViewIcon} className="w-4 h-4" />}
+        </button>
+      )}
+    </div>
+  </div>
+);
 
 export default function AddVaultItem({
   item,
@@ -168,54 +204,6 @@ export default function AddVaultItem({
     setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    if (text) {
-      navigator.clipboard.writeText(text);
-      onShowToast(`${label} copied`, "success");
-      setTimeout(() => {
-        navigator.clipboard.writeText("");
-      }, 30000);
-    }
-  };
-
-  const InputField = ({ icon, label, value, onChange, type = "text", placeholder, showCopy, showPasswordToggle, isMonospace }: {
-    icon: React.ReactNode;
-    label: string;
-    value: string;
-    onChange: (val: string) => void;
-    type?: string;
-    placeholder?: string;
-    showCopy?: boolean;
-    showPasswordToggle?: boolean;
-    isMonospace?: boolean;
-  }) => (
-    <div className="flex items-center gap-3 py-3">
-      <div className="text-zinc-500 flex-shrink-0">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-zinc-500 font-medium">{label}</p>
-        <input
-          type={showPasswordToggle && showPassword ? "text" : type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className={`w-full bg-transparent border-none py-0.5 outline-none text-white text-sm placeholder:text-zinc-600 ${isMonospace ? "font-mono" : ""}`}
-        />
-      </div>
-      <div className="flex items-center gap-0.5 flex-shrink-0">
-        {showCopy && value && (
-          <button type="button" onClick={() => copyToClipboard(value, label)} className="p-2 text-zinc-500 hover:text-white transition-colors">
-            <Copy className="w-4 h-4" />
-          </button>
-        )}
-        {showPasswordToggle && (
-          <button type="button" onClick={() => setShowPassword(!showPassword)} className="p-2 text-zinc-500 hover:text-white transition-colors">
-            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-
   return (
     <motion.div
       initial={{ x: 360 }}
@@ -230,7 +218,7 @@ export default function AddVaultItem({
           onClick={onCancel}
           className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white transition-colors"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <HugeiconsIcon icon={ArrowLeft01Icon} className="w-5 h-5" />
         </button>
         <h2 className="font-semibold text-white tracking-tight text-sm">
           {item ? "Edit Item" : "New Item"}
@@ -239,9 +227,7 @@ export default function AddVaultItem({
           onClick={() => setIsFavorite(!isFavorite)}
           className={`p-2 -mr-2 hover:bg-zinc-900 rounded-xl transition-colors ${isFavorite ? "text-yellow-500" : "text-zinc-600"}`}
         >
-          <svg className={`w-5 h-5 ${isFavorite ? "fill-current" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-          </svg>
+          <HugeiconsIcon icon={StarIcon} className={`w-5 h-5 ${isFavorite ? "fill-current" : ""}`} />
         </button>
       </header>
 
@@ -259,10 +245,10 @@ export default function AddVaultItem({
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              {cat === "Login" && <Key className="w-4 h-4" />}
-              {cat === "Card" && <CreditCard className="w-4 h-4" />}
-              {cat === "Note" && <FileText className="w-4 h-4" />}
-              {cat === "Identity" && <User className="w-4 h-4" />}
+              {cat === "Login" && <HugeiconsIcon icon={Key01Icon} className="w-4 h-4" />}
+              {cat === "Card" && <HugeiconsIcon icon={CreditCardIcon} className="w-4 h-4" />}
+              {cat === "Note" && <HugeiconsIcon icon={FileAttachmentIcon} className="w-4 h-4" />}
+              {cat === "Identity" && <HugeiconsIcon icon={UserIcon} className="w-4 h-4" />}
               {cat}
             </button>
           ))}
@@ -300,25 +286,27 @@ export default function AddVaultItem({
         {category === "Login" && (
           <div className="bg-zinc-900/30 rounded-2xl px-4 divide-y divide-zinc-800/50">
             <InputField
-              icon={<Globe className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={GlobeIcon} className="w-4 h-4" />}
               label="Website"
               value={website}
               onChange={setWebsite}
               placeholder="google.com"
               showCopy
+              onShowToast={onShowToast}
             />
             <InputField
-              icon={<User className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={UserIcon} className="w-4 h-4" />}
               label="Username"
               value={username}
               onChange={setUsername}
               placeholder="name@example.com"
               showCopy
+              onShowToast={onShowToast}
             />
             <div className="py-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-zinc-500" />
+                  <HugeiconsIcon icon={LockIcon} className="w-4 h-4 text-zinc-500" />
                   <p className="text-[11px] font-semibold text-zinc-500">Password</p>
                 </div>
                 <button
@@ -326,7 +314,7 @@ export default function AddVaultItem({
                   onClick={handleGenerate}
                   className="flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent-hover"
                 >
-                  <Sparkles className="w-3 h-3" /> Generate
+                  <HugeiconsIcon icon={SparklesIcon} className="w-3 h-3" /> Generate
                 </button>
               </div>
               <div className="flex items-center gap-2">
@@ -337,21 +325,22 @@ export default function AddVaultItem({
                   placeholder="••••••••••••"
                   className="flex-1 bg-transparent border-none py-0.5 outline-none text-white text-sm font-mono placeholder:text-zinc-600"
                 />
-                <button type="button" onClick={() => copyToClipboard(password, "Password")} className="p-2 text-zinc-500 hover:text-white">
-                  <Copy className="w-4 h-4" />
+                <button type="button" onClick={() => copyToClipboard(password, "Password", onShowToast)} className="p-2 text-zinc-500 hover:text-white">
+                  <HugeiconsIcon icon={Copy01Icon} className="w-4 h-4" />
                 </button>
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="p-2 text-zinc-500 hover:text-white">
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <HugeiconsIcon icon={ViewOffIcon} className="w-4 h-4" /> : <HugeiconsIcon icon={ViewIcon} className="w-4 h-4" />}
                 </button>
               </div>
             </div>
             <InputField
-              icon={<Key className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={Key01Icon} className="w-4 h-4" />}
               label="TOTP Secret (2FA)"
               value={totpSecret}
               onChange={setTotpSecret}
               placeholder="JBSWY3DPEHPK3PXP"
               isMonospace
+              onShowToast={onShowToast}
             />
           </div>
         )}
@@ -360,13 +349,14 @@ export default function AddVaultItem({
         {category === "Card" && (
           <div className="bg-zinc-900/30 rounded-2xl px-4 divide-y divide-zinc-800/50">
             <InputField
-              icon={<CreditCard className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={CreditCardIcon} className="w-4 h-4" />}
               label="Card Number"
               value={cardDetails.number}
               onChange={(v) => setCardDetails({ ...cardDetails, number: v })}
               placeholder="0000 0000 0000 0000"
               isMonospace
               showCopy
+              onShowToast={onShowToast}
             />
             <div className="flex items-center gap-3 py-3">
               <div className="flex-1">
@@ -417,19 +407,21 @@ export default function AddVaultItem({
               </div>
             </div>
             <InputField
-              icon={<Key className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={Key01Icon} className="w-4 h-4" />}
               label="ID Number"
               value={identityDetails.idNumber}
               onChange={(v) => setIdentityDetails({ ...identityDetails, idNumber: v })}
               placeholder="000-00-0000"
               isMonospace
+              onShowToast={onShowToast}
             />
             <InputField
-              icon={<User className="w-4 h-4" />}
+              icon={<HugeiconsIcon icon={UserIcon} className="w-4 h-4" />}
               label="Date of Birth"
               value={identityDetails.dob}
               onChange={(v) => setIdentityDetails({ ...identityDetails, dob: v })}
               type="date"
+              onShowToast={onShowToast}
             />
             <div className="py-3">
               <p className="text-[11px] text-zinc-500 font-medium">Address</p>
@@ -465,7 +457,7 @@ export default function AddVaultItem({
               onClick={() => setCustomFields([...customFields, { id: crypto.randomUUID(), name: "", value: "", isSecret: false }])}
               className="flex items-center gap-1 text-[11px] font-medium text-accent"
             >
-              <Plus className="w-3 h-3" /> Add
+              <HugeiconsIcon icon={Add01Icon} className="w-3 h-3" /> Add
             </button>
           </div>
           {customFields.map((field, idx) => (
@@ -504,7 +496,7 @@ export default function AddVaultItem({
                       }}
                       className="p-1 text-zinc-500 hover:text-white"
                     >
-                      {field._show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      {field._show ? <HugeiconsIcon icon={ViewOffIcon} className="w-3.5 h-3.5" /> : <HugeiconsIcon icon={ViewIcon} className="w-3.5 h-3.5" />}
                     </button>
                   )}
                 </div>
@@ -519,14 +511,14 @@ export default function AddVaultItem({
                   }}
                   className={`p-1 rounded transition-colors ${field.isSecret ? "text-accent" : "text-zinc-600"}`}
                 >
-                  <Lock className="w-3.5 h-3.5" />
+                  <HugeiconsIcon icon={LockIcon} className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setCustomFields(customFields.filter((_, i) => i !== idx))}
                   className="p-1 rounded text-zinc-600 hover:text-red-400 transition-colors"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -541,7 +533,7 @@ export default function AddVaultItem({
               <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-zinc-800 text-[11px] font-medium text-zinc-300">
                 {tag}
                 <button type="button" onClick={() => removeTag(tag)} className="hover:text-white">
-                  <X className="w-3 h-3" />
+                  <HugeiconsIcon icon={Cancel01Icon} className="w-3 h-3" />
                 </button>
               </span>
             ))}
@@ -569,7 +561,7 @@ export default function AddVaultItem({
                   onClick={() => onRestore(item.id)}
                   className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-zinc-200 transition-colors active:scale-[0.98] text-sm"
                 >
-                  <Save className="w-4 h-4 inline mr-2" /> Restore Item
+                  <HugeiconsIcon icon={FloppyDiskIcon} className="w-4 h-4 inline mr-2" /> Restore Item
                 </button>
               )}
               <button
@@ -577,7 +569,7 @@ export default function AddVaultItem({
                 onClick={() => onDelete?.(item.id, true)}
                 className="w-full text-red-400 font-medium py-3 rounded-xl hover:bg-red-500/10 transition-colors text-sm"
               >
-                <Trash2 className="w-4 h-4 inline mr-2" /> Permanently Delete
+                <HugeiconsIcon icon={Delete02Icon} className="w-4 h-4 inline mr-2" /> Permanently Delete
               </button>
             </>
           ) : (
@@ -586,7 +578,7 @@ export default function AddVaultItem({
                 type="submit"
                 className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-zinc-200 transition-colors active:scale-[0.98] text-sm"
               >
-                <Save className="w-4 h-4 inline mr-2" /> {item ? "Save Changes" : "Create Item"}
+                <HugeiconsIcon icon={FloppyDiskIcon} className="w-4 h-4 inline mr-2" /> {item ? "Save Changes" : "Create Item"}
               </button>
               {item && (
                 <button
@@ -594,7 +586,7 @@ export default function AddVaultItem({
                   onClick={() => onDelete?.(item.id)}
                   className="w-full text-red-400 font-medium py-3 rounded-xl hover:bg-red-500/10 transition-colors text-sm"
                 >
-                  <Trash2 className="w-4 h-4 inline mr-2" /> Move to Trash
+                  <HugeiconsIcon icon={Delete02Icon} className="w-4 h-4 inline mr-2" /> Move to Trash
                 </button>
               )}
             </>

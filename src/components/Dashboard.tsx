@@ -1,6 +1,7 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Alert01Icon, ArrowLeft01Icon, CancelCircleIcon, CheckmarkCircle01Icon, Clock01Icon, Key01Icon, Shield01Icon } from "@hugeicons/core-free-icons";
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, AlertTriangle, Key, ShieldCheck, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { VaultItem } from '../types';
 import { calculateTimeToCrack } from '../lib/crypto';
 
@@ -133,7 +134,7 @@ export default function Dashboard({ items, audit, decryptedPasswords, onBack, on
           onClick={onBack}
           className="p-2 -ml-2 hover:bg-zinc-900 rounded-xl text-zinc-400 hover:text-white transition-colors"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <HugeiconsIcon icon={ArrowLeft01Icon} className="w-5 h-5" />
         </button>
         <h2 className="text-lg font-semibold text-white tracking-tight">Security Audit</h2>
       </header>
@@ -141,7 +142,7 @@ export default function Dashboard({ items, audit, decryptedPasswords, onBack, on
       {logins.length === 0 && !isLoading && (
         <div className="flex flex-col items-center justify-center py-20 space-y-3">
           <div className="w-14 h-14 rounded-2xl bg-zinc-900 flex items-center justify-center">
-            <ShieldCheck className="w-7 h-7 text-zinc-600" />
+            <HugeiconsIcon icon={Shield01Icon} className="w-7 h-7 text-zinc-600" />
           </div>
           <p className="text-sm text-zinc-400 font-medium">No logins to analyze</p>
           <p className="text-xs text-zinc-600 text-center max-w-[200px]">Add some login items to see your security audit</p>
@@ -182,7 +183,7 @@ export default function Dashboard({ items, audit, decryptedPasswords, onBack, on
               <div className="bg-zinc-900/30 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-zinc-500" />
+                    <HugeiconsIcon icon={Shield01Icon} className="w-4 h-4 text-zinc-500" />
                     <p className="text-sm font-semibold text-white">Security Checklist</p>
                   </div>
                   <span className="text-xs font-medium text-zinc-500">{checklistDone}/{checklistTotal}</span>
@@ -199,9 +200,9 @@ export default function Dashboard({ items, audit, decryptedPasswords, onBack, on
                   {checklist.map((c, i) => (
                     <div key={i} className="flex items-center gap-2 py-1">
                       {c.done ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <HugeiconsIcon icon={CheckmarkCircle01Icon} className="w-4 h-4 text-green-500 flex-shrink-0" />
                       ) : (
-                        <XCircle className="w-4 h-4 text-zinc-700 flex-shrink-0" />
+                        <HugeiconsIcon icon={CancelCircleIcon} className="w-4 h-4 text-zinc-700 flex-shrink-0" />
                       )}
                       <span className={`text-xs ${c.done ? 'text-zinc-400' : 'text-zinc-500'}`}>{c.label}</span>
                     </div>
@@ -304,7 +305,7 @@ export default function Dashboard({ items, audit, decryptedPasswords, onBack, on
               <div className="bg-zinc-900/30 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Key className="w-4 h-4 text-zinc-500" />
+                    <HugeiconsIcon icon={Key01Icon} className="w-4 h-4 text-zinc-500" />
                     <p className="text-sm font-semibold text-white">2FA Coverage</p>
                   </div>
                   <span className="text-xs font-medium text-zinc-500">{withTotp.length}/{logins.length}</span>
@@ -338,7 +339,7 @@ export default function Dashboard({ items, audit, decryptedPasswords, onBack, on
                         className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${v.count > 0 ? v.bg + ' cursor-pointer' : 'opacity-40 cursor-default'}`}
                       >
                         <div className="flex items-center gap-3">
-                          <AlertTriangle className={`w-4 h-4 ${v.count > 0 ? v.color : 'text-zinc-700'}`} />
+                          <HugeiconsIcon icon={Alert01Icon} className={`w-4 h-4 ${v.count > 0 ? v.color : 'text-zinc-700'}`} />
                           <span className={`text-sm font-medium ${v.count > 0 ? 'text-zinc-200' : 'text-zinc-500'}`}>{v.label}</span>
                         </div>
                         <span className={`text-sm font-semibold ${v.count > 0 ? v.color : 'text-zinc-700'}`}>{v.count}</span>
@@ -374,7 +375,7 @@ export default function Dashboard({ items, audit, decryptedPasswords, onBack, on
                                         )}
                                         {isOld && (
                                           <span className="text-[10px] text-zinc-500 flex items-center gap-0.5">
-                                            <Clock className="w-3 h-3" />
+                                            <HugeiconsIcon icon={Clock01Icon} className="w-3 h-3" />
                                             {timeAgo(item.updatedAt)}
                                           </span>
                                         )}

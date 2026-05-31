@@ -1,15 +1,7 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon, ArrowRight01Icon, Cancel01Icon, CreditCardIcon, Delete02Icon, FileAttachmentIcon, Folder01Icon, Key01Icon, Search01Icon, Settings01Icon, StarIcon, Tick01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  Search,
-  Plus,
-  Key,
-  ChevronRight,
-  CreditCard,
-  FileText,
-  User,
-  Star,
-} from "lucide-react";
 import { VaultItem, VaultFolder } from "../types";
 import * as OTPAuth from "otpauth";
 import { decrypt } from "../lib/crypto";
@@ -199,13 +191,13 @@ export default function VaultList({
   const getIcon = (category: string) => {
     switch (category) {
       case "Card":
-        return <CreditCard className="w-5 h-5" />;
+        return <HugeiconsIcon icon={CreditCardIcon} className="w-5 h-5" />;
       case "Note":
-        return <FileText className="w-5 h-5" />;
+        return <HugeiconsIcon icon={FileAttachmentIcon} className="w-5 h-5" />;
       case "Identity":
-        return <User className="w-5 h-5" />;
+        return <HugeiconsIcon icon={UserIcon} className="w-5 h-5" />;
       default:
-        return <Key className="w-5 h-5" />;
+        return <HugeiconsIcon icon={Key01Icon} className="w-5 h-5" />;
     }
   };
 
@@ -281,26 +273,26 @@ export default function VaultList({
                   : "text-zinc-500 hover:text-white hover:bg-zinc-900"
               }`}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              <HugeiconsIcon icon={Delete02Icon} className="w-[18px] h-[18px]" />
             </button>
             <button
               onClick={onSettings}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-900 transition-colors"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+              <HugeiconsIcon icon={Settings01Icon} className="w-[18px] h-[18px]" />
             </button>
             <button
               onClick={onAdd}
               className="w-8 h-8 flex items-center justify-center bg-white rounded-lg hover:bg-zinc-200 transition-colors text-black"
             >
-              <Plus className="w-4.5 h-4.5" />
+              <HugeiconsIcon icon={Add01Icon} className="w-4.5 h-4.5" />
             </button>
           </div>
         </div>
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+          <HugeiconsIcon icon={Search01Icon} className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
           <input
             type="text"
             value={search}
@@ -482,20 +474,7 @@ export default function VaultList({
                 className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                 style={{ backgroundColor: `${folder.color || "#3b82f6"}15` }}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ color: folder.color || "#3b82f6" }}
-                >
-                  <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-                </svg>
+                <HugeiconsIcon icon={Folder01Icon} color={folder.color || "#3b82f6"} className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
                 {editingFolderId === folder.id ? (
@@ -535,7 +514,7 @@ export default function VaultList({
                   </>
                 )}
               </div>
-              <ChevronRight className="w-3.5 h-3.5 text-zinc-700 flex-shrink-0" />
+              <HugeiconsIcon icon={ArrowRight01Icon} className="w-3.5 h-3.5 text-zinc-700 flex-shrink-0" />
             </motion.div>
           );
         })}
@@ -549,7 +528,7 @@ export default function VaultList({
               className="flex flex-col items-center justify-center py-12 text-center"
             >
               <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center mb-2">
-                <Key className="w-4 h-4 text-zinc-600" />
+                <HugeiconsIcon icon={Key01Icon} className="w-4 h-4 text-zinc-600" />
               </div>
               <p className="text-zinc-500 text-xs">No items found</p>
             </motion.div>
@@ -572,7 +551,7 @@ export default function VaultList({
                   exit={{ opacity: 0 }}
                   className="flex items-center gap-1.5 mt-3 mb-1 first:mt-0 px-2"
                 >
-                  <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                  <HugeiconsIcon icon={StarIcon} className="w-3 h-3 text-yellow-500 fill-yellow-500" />
                   <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Favorites</span>
                 </motion.div>,
               );
@@ -637,7 +616,7 @@ export default function VaultList({
                     }}
                   >
                     {selectedIds.includes(item.id) && (
-                      <svg className="w-2.5 h-2.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                      <HugeiconsIcon icon={Tick01Icon} className="w-2.5 h-2.5 text-black" strokeWidth={3} />
                     )}
                   </div>
                 )}
@@ -672,7 +651,7 @@ export default function VaultList({
                   <div className="flex items-center gap-1.5 min-w-0">
                     <h3 className="font-medium text-xs truncate text-zinc-200">{item.title}</h3>
                     {item.isFavorite && !isSelectMode && (
-                      <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                      <HugeiconsIcon icon={StarIcon} className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500 flex-shrink-0" />
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 min-w-0">
@@ -720,7 +699,7 @@ export default function VaultList({
               <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
                 <h3 className="text-white font-medium text-sm">Move {selectedIds.length} items</h3>
                 <button onClick={() => setShowMoveModal(false)} className="text-zinc-500 hover:text-white">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  <HugeiconsIcon icon={Cancel01Icon} className="w-[18px] h-[18px]" />
                 </button>
               </div>
               <div className="max-h-[50vh] overflow-y-auto p-1.5">
@@ -740,7 +719,7 @@ export default function VaultList({
                     className="w-full text-left px-3 py-2.5 hover:bg-zinc-800 rounded-lg transition-colors text-white text-sm flex items-center gap-2.5"
                   >
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${folder.color || "#3b82f6"}20`, color: folder.color || "#3b82f6" }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" /></svg>
+                      <HugeiconsIcon icon={Folder01Icon} color={folder.color || "#3b82f6"} className="w-3.5 h-3.5" />
                     </div>
                     {folder.name}
                   </button>
