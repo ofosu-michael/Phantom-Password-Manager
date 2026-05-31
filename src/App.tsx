@@ -639,9 +639,9 @@ export default function App() {
       }
     }
 
-    const encryptedPassword = await encrypt(newItem.encryptedPassword || "", masterPassword);
+    const encryptedPassword = newItem.encryptedPassword || "";
 
-    const decryptedPlain = await decrypt(newItem.encryptedPassword || "", masterPassword);
+    const decryptedPlain = await decrypt(encryptedPassword, masterPassword);
     const strengthScore = decryptedPlain ? calculateTimeToCrack(decryptedPlain).score : 0;
 
     const itemToAdd: VaultItem = {
@@ -803,6 +803,13 @@ export default function App() {
                 isFirstTime={view === "setup"}
                 lockoutUntil={lockoutUntil}
                 onImportVault={view === "setup" ? () => setShowImportModal(true) : undefined}
+                onResetVault={view !== "setup" ? () => {
+                  localStorage.clear();
+                  setItems([]);
+                  setMasterPassword("");
+                  setView("setup");
+                  setTimeout(() => window.location.reload(), 100);
+                } : undefined}
               />
             </ErrorBoundary>
             <ImportVaultModal

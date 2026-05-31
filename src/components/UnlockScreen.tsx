@@ -7,17 +7,19 @@ interface UnlockScreenProps {
   isFirstTime?: boolean;
   lockoutUntil?: number | null;
   onImportVault?: () => void;
+  onResetVault?: () => void;
 }
 
 const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Strong', 'Very Strong'];
 const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500', 'bg-emerald-500'];
 const strengthTextColors = ['text-red-500', 'text-orange-500', 'text-yellow-500', 'text-green-500', 'text-emerald-500'];
 
-export default function UnlockScreen({ onUnlock, isFirstTime = false, lockoutUntil, onImportVault }: UnlockScreenProps) {
+export default function UnlockScreen({ onUnlock, isFirstTime = false, lockoutUntil, onImportVault, onResetVault }: UnlockScreenProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [strength, setStrength] = useState<{ score: number; crackTime: string } | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
     if (!lockoutUntil) {
@@ -189,6 +191,51 @@ export default function UnlockScreen({ onUnlock, isFirstTime = false, lockoutUnt
           >
             Import from backup (.pv)
           </button>
+        )}
+
+        {!isFirstTime && onResetVault && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowResetConfirm(true)}
+              className="w-full text-center text-xs font-medium text-zinc-600 hover:text-red-400 transition-colors py-2"
+            >
+              Reset Vault
+            </button>
+
+            {showResetConfirm && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 max-w-xs w-full space-y-4"
+                >
+                  <div className="space-y-2">
+                    <h3 className="text-base font-semibold text-white">Reset Vault?</h3>
+                    <p className="text-sm text-zinc-400 leading-relaxed">
+                      This will permanently delete all passwords, cards, notes, and settings. This action cannot be undone.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowResetConfirm(false)}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { onResetVault(); setShowResetConfirm(false); }}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors"
+                    >
+                      Yes, Reset Everything
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </>
         )}
       </motion.div>
     </div>

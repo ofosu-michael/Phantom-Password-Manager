@@ -61,11 +61,22 @@ export async function encrypt(text: string, secret: string): Promise<string> {
   return JSON.stringify(result);
 }
 
+function isCiphertextShape(value: unknown): value is { v: number; s: string; i: string; c: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as Record<string, unknown>).v === "number" &&
+    typeof (value as Record<string, unknown>).s === "string" &&
+    typeof (value as Record<string, unknown>).i === "string" &&
+    typeof (value as Record<string, unknown>).c === "string"
+  );
+}
+
 export async function decrypt(ciphertext: string, secret: string): Promise<string | null> {
   try {
     const parsed = JSON.parse(ciphertext);
 
-    if (parsed.v === CURRENT_VERSION) {
+    if (parsed.v === 1 || parsed.v === CURRENT_VERSION) {
       const salt = hex2buf(parsed.s);
       const iv = hex2buf(parsed.i);
       const data = hex2buf(parsed.c);
@@ -77,7 +88,19 @@ export async function decrypt(ciphertext: string, secret: string): Promise<strin
         new Uint8Array(data)
       );
 
-      return new TextDecoder().decode(decrypted);
+      const plaintext = new TextDecoder().decode(decrypted);
+
+      // Recursively unwrap if the result is itself ciphertext (double-encryption)
+      try {
+        const inner = JSON.parse(plaintext);
+        if (isCiphertextShape(inner)) {
+          return decrypt(plaintext, secret);
+        }
+      } catch {
+        // not JSON — genuine plaintext
+      }
+
+      return plaintext;
     }
 
     return null;
