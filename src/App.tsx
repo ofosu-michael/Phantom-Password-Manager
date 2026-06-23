@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft01Icon, Copy01Icon, DashboardCircleIcon, Download01Icon, Key01Icon, LockIcon, Refresh01Icon, Settings01Icon, SparklesIcon, Upload01Icon } from "@hugeicons/core-free-icons";
+import { Settings01Icon } from "@hugeicons/core-free-icons";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -9,12 +9,12 @@ import {
   hashPassword,
   verifyPassword,
   generateSecureId,
-  generateRandomPassword,
   calculateTimeToCrack,
   needsMigration,
   migrateVault,
 } from "./lib/crypto";
 import { checkPasswordBreach } from "./lib/hibp";
+import { useChromeMessaging } from "./lib/useChromeMessaging";
 import { VaultItem, VaultFolder, View } from "./types";
 import UnlockScreen from "./components/UnlockScreen.tsx";
 import VaultList from "./components/VaultList.tsx";
@@ -46,7 +46,6 @@ export default function App() {
     const parsed = saved ? parseInt(saved, 10) : 5 * 60 * 1000;
     return isNaN(parsed) ? 5 * 60 * 1000 : parsed;
   });
-  const [breachedIds, setBreachedIds] = useState<string[]>([]);
   const [failedAttempts, setFailedAttempts] = useState(() => {
     const saved = localStorage.getItem(FAILED_ATTEMPTS_KEY);
     return saved ? parseInt(saved, 10) : 0;
@@ -65,7 +64,6 @@ export default function App() {
     const saved = localStorage.getItem("phantom_vault_theme");
     return saved || "apple-blue";
   });
-  const [isSaving, setIsSaving] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const importedVaultDataRef = useRef<{ items: VaultItem[]; folders: VaultFolder[] } | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -77,164 +75,37 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  useEffect(() => {
-    const handlePendingCredential = (cred: any) => {
-      if (Date.now() - cred.timestamp < 5 * 60 * 1000) {
-        setPendingPassword(cred.password);
-        setEditingItem({
-          id: "",
-          category: "Login",
-          title: cred.url,
-          website: cred.url,
-          username: cred.username,
-          encryptedPassword: "",
-          updatedAt: Date.now(),
-        });
-        setView("add");
-      }
-    };
-
-    const handlePendingNote = (note: any) => {
-      if (Date.now() - note.timestamp < 5 * 60 * 1000) {
-        setPendingPassword("");
-        setEditingItem({
-          id: "",
-          category: "Note",
-          title: "Highlighted Note",
-          website: note.url,
-          username: "",
-          encryptedPassword: "",
-          content: note.text,
-          updatedAt: Date.now(),
-        });
-        setView("add");
-      }
-    };
-
-    const checkStorage = () => {
-      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(
-          ["phantom_pending_credential", "phantom_pending_note"],
-          (result) => {
-            if (result.phantom_pending_credential) {
-              handlePendingCredential(result.phantom_pending_credential);
-              chrome.storage.local.remove("phantom_pending_credential");
-            }
-            if (result.phantom_pending_note) {
-              handlePendingNote(result.phantom_pending_note);
-              chrome.storage.local.remove("phantom_pending_note");
-            }
-          }
-        );
-      }
-    };
-
-    checkStorage();
-
-    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
-      const messageListener = (msg: any) => {
-        if (msg.type === "PROMPT_SAVE_PASSWORD" || msg.type === "PROMPT_SAVE_NOTE") {
-          checkStorage();
-        }
-      };
-      chrome.runtime.onMessage.addListener(messageListener);
-      return () => chrome.runtime.onMessage.removeListener(messageListener);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
-      const credentialListener = (msg: any, sender: any, sendResponse: any) => {
-        if (msg.type === "REQUEST_CREDENTIALS") {
-          if (!masterPassword) {
-            sendResponse({ success: false, locked: true });
-            return true;
-          }
-
-          const domain = msg.domain || "";
-          const matchedCredentials = items
-            .filter((item) => {
-              if (item.category !== "Login" || !item.website) return false;
-              const w = item.website.toLowerCase();
-              const d = domain.toLowerCase();
-              if (w.includes(d) || d.includes(w)) return true;
-              try {
-                const host = new URL(w.startsWith("http") ? w : `https://${w}`).hostname;
-                return host.includes(d) || d.includes(host);
-              } catch (e) {
-                return false;
-              }
-            });
-
-          Promise.all(
-            matchedCredentials.map(async (item) => {
-              try {
-                const password = await decrypt(item.encryptedPassword, masterPassword);
-                return {
-                  id: item.id,
-                  title: item.title,
-                  username: item.username,
-                  password,
-                };
-              } catch (e) {
-                return null;
-              }
-            })
-          ).then((results) => {
-            sendResponse({ success: true, credentials: results.filter(Boolean) });
-          });
-
-          return true;
-        }
-
-        if (msg.type === "CHECK_CREDENTIAL_EXISTS") {
-          if (!masterPassword) {
-            sendResponse({ exists: false, locked: true });
-            return true;
-          }
-
-          const domain = msg.domain || "";
-          const username = msg.username || "";
-          const password = msg.password || "";
-
-          (async () => {
-            for (const item of items) {
-              if (item.category !== "Login" || !item.website) continue;
-
-              const w = item.website.toLowerCase();
-              const d = domain.toLowerCase();
-              let domainMatch = false;
-
-              if (w.includes(d) || d.includes(w)) domainMatch = true;
-              else {
-                try {
-                  const host = new URL(w.startsWith("http") ? w : `https://${w}`).hostname;
-                  if (host.includes(d) || d.includes(host)) domainMatch = true;
-                } catch (e) {}
-              }
-
-              if (!domainMatch) continue;
-              if (item.username !== username) continue;
-
-              try {
-                const decrypted = await decrypt(item.encryptedPassword, masterPassword);
-                if (decrypted === password) {
-                  sendResponse({ exists: true, locked: false });
-                  return;
-                }
-              } catch (e) {}
-            }
-            sendResponse({ exists: false, locked: false });
-          })();
-
-          return true;
-        }
-      };
-
-      chrome.runtime.onMessage.addListener(credentialListener);
-      return () => chrome.runtime.onMessage.removeListener(credentialListener);
-    }
-  }, [items, masterPassword]);
+  useChromeMessaging({
+    items,
+    masterPassword,
+    onPendingCredential: (cred) => {
+      setPendingPassword(cred.password);
+      setEditingItem({
+        id: "",
+        category: "Login",
+        title: cred.url,
+        website: cred.url,
+        username: cred.username,
+        encryptedPassword: "",
+        updatedAt: Date.now(),
+      });
+      setView("add");
+    },
+    onPendingNote: (note) => {
+      setPendingPassword("");
+      setEditingItem({
+        id: "",
+        category: "Note",
+        title: "Highlighted Note",
+        website: note.url,
+        username: "",
+        encryptedPassword: "",
+        content: note.text,
+        updatedAt: Date.now(),
+      });
+      setView("add");
+    },
+  });
 
   const [toast, setToast] = useState<{
     text: string;
@@ -350,7 +221,6 @@ export default function App() {
           breached: breachedCount,
           breachedIds: newBreachedIds,
         });
-        setBreachedIds(newBreachedIds);
         setIsAuditLoading(false);
       }
     };
@@ -361,6 +231,8 @@ export default function App() {
       cancelled = true;
     };
   }, [items, masterPassword]);
+
+  const [decryptedEditingPassword, setDecryptedEditingPassword] = useState("");
 
   const clearSession = useCallback(() => {
     setMasterPassword("");
@@ -541,18 +413,13 @@ export default function App() {
       if (!masterPassword) return;
       const prevSave = saveQueueRef.current;
       saveQueueRef.current = prevSave.then(async () => {
-        setIsSaving(true);
-        try {
-          const encrypted = await encrypt(
-            JSON.stringify({ items: newItems, folders: targetFolders }),
-            masterPassword
-          );
-          localStorage.setItem(STORAGE_KEY, encrypted);
-          setItems(newItems);
-          setFolders(targetFolders);
-        } finally {
-          setIsSaving(false);
-        }
+        const encrypted = await encrypt(
+          JSON.stringify({ items: newItems, folders: targetFolders }),
+          masterPassword
+        );
+        localStorage.setItem(STORAGE_KEY, encrypted);
+        setItems(newItems);
+        setFolders(targetFolders);
       });
       return saveQueueRef.current;
     },
@@ -756,8 +623,6 @@ export default function App() {
     showToast(`${itemIds.length} items restored`, "success");
   };
 
-  const [decryptedEditingPassword, setDecryptedEditingPassword] = useState("");
-
   useEffect(() => {
     if (pendingPassword) {
       setDecryptedEditingPassword(pendingPassword);
@@ -804,7 +669,13 @@ export default function App() {
                 lockoutUntil={lockoutUntil}
                 onImportVault={view === "setup" ? () => setShowImportModal(true) : undefined}
                 onResetVault={view !== "setup" ? () => {
-                  localStorage.clear();
+                  const vaultKeys = [
+                    STORAGE_KEY, MASTER_HASH_KEY, SESSION_KEY,
+                    LOCKOUT_UNTIL_KEY, FAILED_ATTEMPTS_KEY,
+                    "phantom_vault_version", "phantom_vault_autolock",
+                    "phantom_vault_theme",
+                  ];
+                  vaultKeys.forEach((key) => localStorage.removeItem(key));
                   setItems([]);
                   setMasterPassword("");
                   setView("setup");
@@ -1022,7 +893,13 @@ export default function App() {
                 setView("unlock");
               }}
               onClear={() => {
-                localStorage.clear();
+                const vaultKeys = [
+                  STORAGE_KEY, MASTER_HASH_KEY, SESSION_KEY,
+                  LOCKOUT_UNTIL_KEY, FAILED_ATTEMPTS_KEY,
+                  "phantom_vault_version", "phantom_vault_autolock",
+                  "phantom_vault_theme",
+                ];
+                vaultKeys.forEach((key) => localStorage.removeItem(key));
                 setItems([]);
                 setMasterPassword("");
                 setView("setup");
@@ -1077,6 +954,17 @@ export default function App() {
                           return cf;
                         })
                       );
+                    }
+                    if (item.cardDetails?.encryptedCvv) {
+                      try {
+                        const cvv = await decrypt(item.cardDetails.encryptedCvv, oldPassword);
+                        if (cvv) {
+                          newItem.cardDetails = {
+                            ...item.cardDetails,
+                            encryptedCvv: await encrypt(cvv, newPassword),
+                          };
+                        }
+                      } catch {}
                     }
                     return newItem;
                   })

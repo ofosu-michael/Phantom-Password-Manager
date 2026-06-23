@@ -1,11 +1,12 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowDown01Icon, ArrowLeft01Icon, ArrowUp01Icon, Clock01Icon, Copy01Icon, CreditCardIcon, Delete02Icon, FileAttachmentIcon, GlobeIcon, Key01Icon, LockIcon, PencilIcon, RotateLeft01Icon, StarIcon, Tag01Icon, Tick01Icon, UserIcon, ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { VaultItem, VaultFolder } from "../types";
 import { decrypt } from "../lib/crypto";
+import * as OTPAuth from "otpauth";
 
 const CopyButton = ({ field, text, copiedField, onCopy }: {
   field: string;
@@ -90,6 +91,7 @@ export default function ItemPreview({
   const [decryptedHistory, setDecryptedHistory] = useState<{ password: string; timestamp: number }[]>([]);
   const [showHistoryEntry, setShowHistoryEntry] = useState<string | null>(null);
   const [showConfirmPermanentDelete, setShowConfirmPermanentDelete] = useState(false);
+  const [decryptedCvv, setDecryptedCvv] = useState("");
 
   useEffect(() => {
     if (item.encryptedPassword && masterPassword) {
@@ -106,6 +108,16 @@ export default function ItemPreview({
       });
     }
   }, [item.encryptedTotpSecret, masterPassword]);
+
+  useEffect(() => {
+    if (item.cardDetails?.encryptedCvv && masterPassword) {
+      decrypt(item.cardDetails.encryptedCvv, masterPassword).then((val) => {
+        if (val) setDecryptedCvv(val);
+      });
+    } else {
+      setDecryptedCvv("");
+    }
+  }, [item.cardDetails?.encryptedCvv, masterPassword]);
 
   useEffect(() => {
     setCustomFields([]);
@@ -147,35 +159,18 @@ export default function ItemPreview({
   useEffect(() => {
     if (!totpSecret) return;
 
-    const generateTOTP = async () => {
+    const totp = new OTPAuth.TOTP({
+      algorithm: "SHA1",
+      digits: 6,
+      period: 30,
+      secret: OTPAuth.Secret.fromBase32(totpSecret.replace(/\s+/g, "")),
+    });
+
+    const generateTOTP = () => {
       try {
-        const secret = totpSecret.replace(/\s/g, "").toUpperCase();
-        const key = base32ToBytes(secret);
         const epoch = Math.floor(Date.now() / 1000);
-        const timeStep = Math.floor(epoch / 30);
         setTimeRemaining(30 - (epoch % 30));
-        const timeBytes = new Uint8Array(8);
-        let t = timeStep;
-        for (let i = 7; i >= 0; i--) {
-          timeBytes[i] = t & 0xff;
-          t = Math.floor(t / 256);
-        }
-        const cryptoKey = await crypto.subtle.importKey(
-          "raw",
-          key,
-          { name: "HMAC", hash: "SHA-1" },
-          false,
-          ["sign"]
-        );
-        const hmac = await crypto.subtle.sign("HMAC", cryptoKey, timeBytes);
-        const hmacBytes = new Uint8Array(hmac);
-        const offset = hmacBytes[hmacBytes.length - 1] & 0x0f;
-        const code =
-          ((hmacBytes[offset] & 0x7f) << 24) |
-          ((hmacBytes[offset + 1] & 0xff) << 16) |
-          ((hmacBytes[offset + 2] & 0xff) << 8) |
-          (hmacBytes[offset + 3] & 0xff);
-        setTotpCode(String(code % 1000000).padStart(6, "0"));
+        setTotpCode(totp.generate());
       } catch {
         setTotpCode("");
       }
@@ -346,11 +341,11 @@ export default function ItemPreview({
               </div>
               <div className="flex-1">
                 <p className="text-[11px] text-zinc-500 font-medium">CVV</p>
-                <p className="text-sm font-mono text-white mt-0.5">{item.cardDetails?.cvv || "—"}</p>
+                <p className="text-sm font-mono text-white mt-0.5">{showPassword ? (decryptedCvv || "—") : (decryptedCvv ? "•••" : "—")}</p>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 <CopyButton field="cardExpiry" text={item.cardDetails?.expiry || ""} copiedField={copiedField} onCopy={handleCopy} />
-                <CopyButton field="cardCvv" text={item.cardDetails?.cvv || ""} copiedField={copiedField} onCopy={handleCopy} />
+                <CopyButton field="cardCvv" text={showPassword ? decryptedCvv : ""} copiedField={copiedField} onCopy={handleCopy} />
               </div>
             </div>
           </div>
@@ -623,22 +618,4 @@ export default function ItemPreview({
       </AnimatePresence>
     </motion.div>
   );
-}
-
-function base32ToBytes(secret: string): Uint8Array {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = 0;
-  let value = 0;
-  const output: number[] = [];
-  for (const char of secret) {
-    const idx = alphabet.indexOf(char);
-    if (idx === -1) continue;
-    value = (value << 5) | idx;
-    bits += 5;
-    if (bits >= 8) {
-      bits -= 8;
-      output.push((value >> bits) & 0xff);
-    }
-  }
-  return new Uint8Array(output);
 }

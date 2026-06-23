@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { generateRandomPassword, calculateTimeToCrack, generateSecureId } from "../lib/crypto";
+import {
+  generateRandomPassword,
+  calculateTimeToCrack,
+  generateSecureId,
+  encrypt,
+  decrypt,
+  hashPassword,
+  verifyPassword,
+} from "../lib/crypto";
 
 describe("generateRandomPassword", () => {
   it("generates password with default length of 16", () => {
@@ -76,5 +84,99 @@ describe("generateSecureId", () => {
       ids.add(generateSecureId());
     }
     expect(ids.size).toBe(100);
+  });
+});
+
+describe("encrypt/decrypt round-trip", () => {
+  it("encrypts and decrypts plaintext correctly", async () => {
+    const plaintext = "my-secret-password-123";
+    const secret = "master-password";
+    const encrypted = await encrypt(plaintext, secret);
+    const decrypted = await decrypt(encrypted, secret);
+    expect(decrypted).toBe(plaintext);
+  });
+
+  it("produces different ciphertext each time (random salt/IV)", async () => {
+    const plaintext = "same plaintext";
+    const secret = "same-secret";
+    const enc1 = await encrypt(plaintext, secret);
+    const enc2 = await encrypt(plaintext, secret);
+    expect(enc1).not.toBe(enc2);
+    const dec1 = await decrypt(enc1, secret);
+    const dec2 = await decrypt(enc2, secret);
+    expect(dec1).toBe(plaintext);
+    expect(dec2).toBe(plaintext);
+  });
+
+  it("returns null when decrypting with wrong password", async () => {
+    const plaintext = "secret data";
+    const encrypted = await encrypt(plaintext, "correct-password");
+    const decrypted = await decrypt(encrypted, "wrong-password");
+    expect(decrypted).toBeNull();
+  });
+
+  it("handles empty string", async () => {
+    const encrypted = await encrypt("", "secret");
+    const decrypted = await decrypt(encrypted, "secret");
+    expect(decrypted).toBe("");
+  });
+
+  it("handles unicode content", async () => {
+    const plaintext = "Hello 世界 🌍 مرحبا";
+    const encrypted = await encrypt(plaintext, "secret");
+    const decrypted = await decrypt(encrypted, "secret");
+    expect(decrypted).toBe(plaintext);
+  });
+
+  it("handles very long content", async () => {
+    const plaintext = "x".repeat(100_000);
+    const encrypted = await encrypt(plaintext, "secret");
+    const decrypted = await decrypt(encrypted, "secret");
+    expect(decrypted).toBe(plaintext);
+  });
+
+  it("returns null for invalid JSON", async () => {
+    const result = await decrypt("not-valid-json", "secret");
+    expect(result).toBeNull();
+  });
+
+  it("returns null for valid JSON but wrong shape", async () => {
+    const result = await decrypt(JSON.stringify({ foo: "bar" }), "secret");
+    expect(result).toBeNull();
+  });
+});
+
+describe("hashPassword/verifyPassword", () => {
+  it("hashes and verifies password correctly", async () => {
+    const password = "my-secure-password";
+    const hash = await hashPassword(password);
+    const valid = await verifyPassword(password, hash);
+    expect(valid).toBe(true);
+  });
+
+  it("rejects wrong password", async () => {
+    const hash = await hashPassword("correct-password");
+    const valid = await verifyPassword("wrong-password", hash);
+    expect(valid).toBe(false);
+  });
+
+  it("produces different hashes for same password (random salt)", async () => {
+    const hash1 = await hashPassword("password");
+    const hash2 = await hashPassword("password");
+    expect(hash1).not.toBe(hash2);
+    const valid1 = await verifyPassword("password", hash1);
+    const valid2 = await verifyPassword("password", hash2);
+    expect(valid1).toBe(true);
+    expect(valid2).toBe(true);
+  });
+
+  it("returns false for invalid hash JSON", async () => {
+    const valid = await verifyPassword("password", "not-json");
+    expect(valid).toBe(false);
+  });
+
+  it("returns false for hash with missing fields", async () => {
+    const valid = await verifyPassword("password", JSON.stringify({ s: "abc" }));
+    expect(valid).toBe(false);
   });
 });

@@ -93,8 +93,9 @@ export default function AddVaultItem({
   const [totpSecret, setTotpSecret] = useState("");
   const [content, setContent] = useState(item?.content || "");
   const [cardDetails, setCardDetails] = useState(
-    item?.cardDetails || { number: "", expiry: "", cvv: "" },
+    item?.cardDetails || { number: "", expiry: "", encryptedCvv: "" },
   );
+  const [cvv, setCvv] = useState("");
   const [identityDetails, setIdentityDetails] = useState(
     item?.identityDetails || { firstName: "", lastName: "", idNumber: "", dob: "", address: "" },
   );
@@ -118,50 +119,54 @@ export default function AddVaultItem({
   }, [item?.encryptedTotpSecret, masterPassword]);
 
   useEffect(() => {
-    if (item?.customFields && masterPassword) {
-      item.customFields.forEach(async (cf) => {
-        if (cf.isSecret && cf.value) {
-          const val = await decrypt(cf.value, masterPassword);
-          if (val) {
-            setCustomFields((prev) =>
-              prev.map((f) => (f.id === cf.id ? { ...f, value: val } : f))
-            );
-          }
-        }
+    if (item?.cardDetails?.encryptedCvv && masterPassword) {
+      decrypt(item.cardDetails.encryptedCvv, masterPassword).then((val) => {
+        if (val) setCvv(val);
       });
     }
-  }, [item?.customFields, masterPassword]);
+  }, [item?.cardDetails?.encryptedCvv, masterPassword]);
+
+  useEffect(() => {
+    if (!item?.customFields || !masterPassword) return;
+    let cancelled = false;
+    const decryptFields = async () => {
+      const results = await Promise.all(
+        item.customFields!.map(async (cf) => {
+          let val = cf.value;
+          if (cf.isSecret && cf.value) {
+            const d = await decrypt(cf.value, masterPassword);
+            if (d) val = d;
+          }
+          return { ...cf, value: val };
+        })
+      );
+      if (!cancelled) setCustomFields(results);
+    };
+    decryptFields();
+    return () => { cancelled = true; };
+  }, [item?.id, item?.customFields, masterPassword]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title) return;
+    if (!title || !masterPassword) return;
 
-    let history = item?.passwordHistory || [];
-
-    if (item?.id && category === "Login" && password) {
-      const oldPassRaw = await decrypt(item.encryptedPassword, masterPassword || "");
-      if (oldPassRaw && oldPassRaw !== password) {
-        const reencryptedOldPass = await encrypt(oldPassRaw, masterPassword || "");
-        history = [
-          { password: reencryptedOldPass, timestamp: item.updatedAt },
-          ...(item.passwordHistory || []),
-        ].slice(0, 5);
-      }
-    }
-
-    const encryptedPassword = await encrypt(password || "", masterPassword || "");
+    const encryptedPassword = await encrypt(password || "", masterPassword);
 
     let encryptedTotpSecret = undefined;
     if (totpSecret.trim()) {
-      encryptedTotpSecret = await encrypt(totpSecret.trim(), masterPassword || "");
+      encryptedTotpSecret = await encrypt(totpSecret.trim(), masterPassword);
     }
+
+    const encryptedCvv = cvv.trim()
+      ? await encrypt(cvv.trim(), masterPassword)
+      : undefined;
 
     const finalCustomFields = await Promise.all(
       customFields.map(async (cf) => ({
         id: cf.id,
         name: cf.name,
         value:
-          cf.isSecret && masterPassword && cf.value
+          cf.isSecret && cf.value
             ? await encrypt(cf.value, masterPassword)
             : cf.value,
         isSecret: cf.isSecret,
@@ -179,8 +184,10 @@ export default function AddVaultItem({
       folderId: folderId || undefined,
       isFavorite,
       content,
-      cardDetails,
-      identityDetails,
+      cardDetails: category === "Card"
+        ? { number: cardDetails.number, expiry: cardDetails.expiry, encryptedCvv }
+        : undefined,
+      identityDetails: category === "Identity" ? identityDetails : undefined,
       customFields: finalCustomFields.length > 0 ? finalCustomFields : undefined,
       tags,
       updatedAt: Date.now(),
@@ -373,8 +380,8 @@ export default function AddVaultItem({
                 <p className="text-[11px] text-zinc-500 font-medium">CVV</p>
                 <input
                   type="text"
-                  value={cardDetails.cvv}
-                  onChange={(e) => setCardDetails({ ...cardDetails, cvv: e.target.value })}
+                  value={cvv}
+                  onChange={(e) => setCvv(e.target.value)}
                   placeholder="123"
                   className="w-full bg-transparent border-none py-0.5 outline-none text-white text-sm font-mono placeholder:text-zinc-600"
                 />

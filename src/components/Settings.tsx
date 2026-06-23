@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import Papa from "papaparse";
 import zxcvbn from "zxcvbn";
 import { VaultItem, VaultFolder } from "../types";
-import { decrypt, encrypt, hashPassword } from "../lib/crypto";
+import { decrypt, encrypt } from "../lib/crypto";
 
 interface SettingsProps {
   items: VaultItem[];
@@ -28,8 +28,8 @@ export default function Settings({
   folders,
   masterPassword,
   autoLockTimeout,
-  theme,
-  onUpdateTheme,
+  theme: _theme,
+  onUpdateTheme: _onUpdateTheme,
   onUpdateAutoLock,
   onBack,
   onImport,

@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-Phantom Password Manager is a security-sensitive project. If you discover a security vulnerability, please report it privately by opening a [GitHub Issue](https://github.com/anomalyco/phantom-password-manager/issues) with the details. Avoid including sensitive exploit details in the public description — we will follow up to discuss next steps.
+Phantom Password Manager is a security-sensitive project. If you discover a security vulnerability, please report it privately using [GitHub's Private Vulnerability Reporting](https://github.com/anomalyco/phantom-password-manager/security/advisories/new). This ensures the report stays confidential. Do **not** open a public issue for security vulnerabilities.
 
 We aim to acknowledge reports within **48 hours** and will work on a fix as quickly as possible.
 

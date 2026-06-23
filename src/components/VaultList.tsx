@@ -35,17 +35,17 @@ export default function VaultList({
   folders = [],
   audit,
   masterPassword,
-  onShowToast,
+  onShowToast: _onShowToast,
   onAdd,
   onAddFolder,
   onRenameFolder,
-  onDeleteFolder,
-  onMoveToFolder,
+  onDeleteFolder: _onDeleteFolder,
+  onMoveToFolder: _onMoveToFolder,
   onBulkMove,
   onBulkDelete,
   onBulkRestore,
   onEdit,
-  onDashboard,
+  onDashboard: _onDashboard,
   onSettings,
 }: VaultListProps) {
   const [search, setSearch] = useState(() => {
@@ -64,7 +64,6 @@ export default function VaultList({
   const [editingFolderName, setEditingFolderName] = useState("");
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderColor, setNewFolderColor] = useState("#8b5cf6");
-  const [failedFavicons, setFailedFavicons] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -187,19 +186,6 @@ export default function VaultList({
         return b.updatedAt - a.updatedAt;
       });
   }, [items, search, activeCategory, activeFolder, audit.breachedIds]);
-
-  const getIcon = (category: string) => {
-    switch (category) {
-      case "Card":
-        return <HugeiconsIcon icon={CreditCardIcon} className="w-5 h-5" />;
-      case "Note":
-        return <HugeiconsIcon icon={FileAttachmentIcon} className="w-5 h-5" />;
-      case "Identity":
-        return <HugeiconsIcon icon={UserIcon} className="w-5 h-5" />;
-      default:
-        return <HugeiconsIcon icon={Key01Icon} className="w-5 h-5" />;
-    }
-  };
 
   const handleLongPressStart = (itemId: string) => {
     const timer = setTimeout(() => {
@@ -632,15 +618,8 @@ export default function VaultList({
                     ) : (
                       <span className="text-base">{item.customIcon}</span>
                     )
-                  ) : item.category === "Login" && item.website && !failedFavicons.has(item.id) ? (
-                    <img
-                      src={`https://www.google.com/s2/favicons?sz=64&domain=${item.website}`}
-                      className="w-4 h-4 rounded opacity-80"
-                      alt=""
-                      onError={() => {
-                        setFailedFavicons((prev) => new Set(prev).add(item.id));
-                      }}
-                    />
+                  ) : item.category === "Login" && item.website ? (
+                    <span className="text-zinc-400 text-xs font-semibold">{item.website[0]?.toUpperCase()}</span>
                   ) : (
                     <span className="text-zinc-400 text-xs font-medium">{item.title[0]?.toUpperCase()}</span>
                   )}

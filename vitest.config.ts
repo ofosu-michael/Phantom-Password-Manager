@@ -13,6 +13,12 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html"],
       exclude: ["node_modules/", "src/test/"],
+      thresholds: {
+        statements: 50,
+        branches: 50,
+        functions: 50,
+        lines: 50,
+      },
     },
   },
 });

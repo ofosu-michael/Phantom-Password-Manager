@@ -7,14 +7,14 @@ export interface VaultItem {
   encryptedTotpSecret?: string;
   category: "Login" | "Note" | "Card" | "Identity";
   isFavorite?: boolean;
-  folderId?: string; // Hierarchical folder organization
-  customIcon?: string; // Custom icon (URL, emoji, or base64 data)
-  customIconColor?: string; // Custom background color if no icon
-  content?: string; // For Secure Notes (Markdown)
+  folderId?: string;
+  customIcon?: string;
+  customIconColor?: string;
+  content?: string;
   cardDetails?: {
     number: string;
     expiry: string;
-    cvv: string;
+    encryptedCvv?: string;
   };
   identityDetails?: {
     firstName: string;
@@ -34,16 +34,16 @@ export interface VaultItem {
     isSecret: boolean;
   }[];
   updatedAt: number;
-  deletedAt?: number; // Soft delete timestamp
-  strength?: number; // 0-5 score
+  deletedAt?: number;
+  strength?: number;
   tags?: string[];
 }
 
 export interface VaultFolder {
   id: string;
   name: string;
-  parentId?: string; // Allows for hierarchical organization
-  color?: string; // Optional folder color
+  parentId?: string;
+  color?: string;
 }
 
 export interface EncryptedVault {

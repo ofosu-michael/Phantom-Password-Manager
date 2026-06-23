@@ -50,7 +50,7 @@ src/
 - **React** — Functional components with hooks. No class components.
 - **Imports** — Use `@/` alias for absolute imports (maps to project root).
 - **Linting** — ESLint with `@typescript-eslint` and `eslint-plugin-react`. Run `npm run lint` before committing.
-- **Formatting** — Prettier (single quotes, trailing commas, 100 print width). Run `npm run format` to auto-format.
+- **Formatting** — Prettier (double quotes, trailing commas, 100 print width). Run `npm run format` to auto-format.
 - **No `console.log`** — Use `console.warn` / `console.error` if needed. Logging is linted as a warning.
 - **Unused variables** — Prefix with `_` to suppress the unused-vars warning.
 
@@ -75,7 +75,7 @@ src/
 
 ## Security
 
-This is a security-sensitive project. If you discover a vulnerability, **do not** open a public issue. Report it privately by opening an issue with sensitive details redacted, and we'll follow up.
+This is a security-sensitive project. If you discover a vulnerability, **do not** open a public issue. Report it privately using [GitHub's Private Vulnerability Reporting](https://github.com/anomalyco/phantom-password-manager/security/advisories/new).
 
 ## Code of Conduct
 

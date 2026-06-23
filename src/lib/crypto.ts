@@ -175,7 +175,14 @@ export async function verifyPassword(password: string, storedHash: string): Prom
       256
     );
 
-    return buf2hex(derivedBits) === parsed.h;
+    const a = new TextEncoder().encode(buf2hex(derivedBits));
+    const b = new TextEncoder().encode(parsed.h);
+    if (a.length !== b.length) return false;
+    let result = 0;
+    for (let i = 0; i < a.length; i++) {
+      result |= a[i] ^ b[i];
+    }
+    return result === 0;
   } catch {
     return false;
   }
